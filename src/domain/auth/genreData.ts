@@ -1,0 +1,22 @@
+export const AVAILABLE_GENRES: string[] = [
+    "Pop",
+    "Rock",
+    "Hip-Hop",
+    "Rap",
+    "R&B",
+    "Jazz",
+    "Blues",
+    "Soul",
+    "Funk",
+    "Classical",
+    "Electronic",
+    "House",
+    "Techno",
+    "EDM",
+    "Indie",
+    "Alternative",
+    "Metal",
+    "Punk",
+    "Folk",
+    "Country"
+];
