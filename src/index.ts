@@ -1,5 +1,4 @@
-import { loadLastFMDataset } from "./data/lastfmLoader";
-import { saveInteractionsToJSON } from "./data/dataPreprocessor";
+import app from "./server/app";
 
 const filePath = "dataset/raw/userid-timestamp-artid-artname-traid-traname.tsv";
 
