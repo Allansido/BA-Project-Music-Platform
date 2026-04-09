@@ -10,6 +10,15 @@ export interface Interaction {
     timestamp: string;
 }
 
+type LastFMRow = {
+    userId: string;
+    timestamp: string;
+    artistId: string;
+    artistName: string;
+    trackId: string;
+    trackName: string;
+};
+
 export function loadLastFMDataset(
     filePath: string,
     sampleSize?: number
@@ -31,7 +40,7 @@ export function loadLastFMDataset(
                     ]
                 })
             )
-            .on("data", (row) => {
+            .on("data", (row: LastFMRow) => {
                 if (sampleSize && interactions.length >= sampleSize) return;
 
                 interactions.push({
