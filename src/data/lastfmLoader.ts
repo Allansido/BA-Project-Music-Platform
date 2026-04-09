@@ -16,6 +16,7 @@ export function loadLastFMDataset(
 ): Promise<Interaction[]> {
     return new Promise((resolve, reject) => {
         const interactions: Interaction[] = [];
+        const selectedUsers = new Set<string>();
 
         fs.createReadStream(filePath)
             .pipe(
@@ -32,7 +33,14 @@ export function loadLastFMDataset(
                 })
             )
             .on("data", (row) => {
-                if (sampleSize && interactions.length >= sampleSize) return;
+
+                // Step 1: collect users until limit
+                if (selectedUsers.size < (sampleSize || 200)) {
+                    selectedUsers.add(row.userId);
+                }
+
+                // Step 2: only include selected users
+                if (!selectedUsers.has(row.userId)) return;
 
                 interactions.push({
                     userId: row.userId,
