@@ -1,13 +1,7 @@
-import { loadLastFMDataset } from "./data/lastfmLoader";
-import { saveInteractionsToJSON } from "./data/dataPreprocessor";
+import app from "./server/app";
 
-const filePath =
-    "dataset/raw/userid-timestamp-artid-artname-traid-traname.tsv";
+const PORT = 3000;
 
-async function run() {
-    const interactions = await loadLastFMDataset(filePath, 100);
-
-    saveInteractionsToJSON(interactions, "dataset/processed/interactions.json");
-}
-
-run();
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
