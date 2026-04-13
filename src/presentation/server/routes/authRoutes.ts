@@ -4,7 +4,7 @@ import {
     getSafeUserById,
     loginUser,
     registerUser
-} from "../../domain/auth/authService";
+} from "../../../domain/auth/authService";
 
 const router = Router();
 
@@ -27,7 +27,7 @@ router.get("/me", (req: Request, res: Response) => {
     const user = getSafeUserById(userId);
 
     if (!user) {
-        req.session.destroy(() => {});
+        req.session.destroy(() => { });
         return res.status(401).json({ message: "Session is invalid." });
     }
 

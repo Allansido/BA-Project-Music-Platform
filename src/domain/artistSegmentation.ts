@@ -1,4 +1,4 @@
-import { Interaction } from "../data/lastfmLoader";
+import { Interaction } from "../data/dataset_modules/lastfmLoader";
 
 export type ArtistSegment = "emerging" | "established";
 

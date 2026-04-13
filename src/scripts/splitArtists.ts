@@ -1,5 +1,5 @@
 import fs from "fs";
-import { Interaction } from "../data/lastfmLoader";
+import { Interaction } from "../data/dataset_modules/lastfmLoader";
 import { splitArtistsBySegment } from "../domain/artistSegmentation";
 
 const inputPath = "dataset/processed/interactions.json";
