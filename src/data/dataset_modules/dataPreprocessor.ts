@@ -1,5 +1,5 @@
 import fs from "fs";
-import { Interaction } from "./lastfmLoader";
+import { Interaction } from "./lastfmLoader.ts";
 
 export function saveInteractionsToJSON(
     interactions: Interaction[],
