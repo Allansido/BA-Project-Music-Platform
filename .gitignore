@@ -2,3 +2,6 @@ dataset/
 data/
 *.tsv
 *.json
+node_modules
+dataset
+dist
