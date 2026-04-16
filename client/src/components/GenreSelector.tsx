@@ -12,8 +12,11 @@ function GenreSelector({
     error
 }: GenreSelectorProps) {
     return (
-        <div className="form-group">
-            <label className="form-label">Preferred genres</label>
+        <div className="choice-section">
+            <div className="choice-section-heading">
+                <label className="form-label">Preferred genres</label>
+                <span>{selectedGenres.length} selected</span>
+            </div>
             <p className="helper-text">
                 Choose at least 3 genres. You can choose more if you want.
             </p>
@@ -26,7 +29,7 @@ function GenreSelector({
                         <button
                             key={genre}
                             type="button"
-                            className={`genre-chip ${isSelected ? "selected" : ""}`}
+                            className={`choice-chip ${isSelected ? "selected" : ""}`}
                             onClick={() => onToggleGenre(genre)}
                         >
                             {genre}

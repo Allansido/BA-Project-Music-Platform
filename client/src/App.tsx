@@ -29,11 +29,9 @@ function App() {
 
     if (isCheckingSession) {
         return (
-            <div className="page-container">
-                <div className="auth-card">
-                    <p>Loading...</p>
-                </div>
-            </div>
+            <main className="page-container">
+                <p className="loading-pill">Loading...</p>
+            </main>
         );
     }
 
