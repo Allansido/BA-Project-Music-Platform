@@ -7,6 +7,7 @@ export interface User {
     passwordHash: string;
     role: UserRole;
     genres: string[];
+    favoriteArtists: string[];
 }
 
 export interface SafeUser {
@@ -15,6 +16,7 @@ export interface SafeUser {
     email: string;
     role: UserRole;
     genres: string[];
+    favoriteArtists: string[];
 }
 
 export interface SignupInput {
@@ -23,6 +25,7 @@ export interface SignupInput {
     password: string;
     role: UserRole;
     genres: string[];
+    favoriteArtists: string[];
 }
 
 export interface LoginInput {
