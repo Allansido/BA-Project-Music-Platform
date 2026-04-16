@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { logout } from "../api/authApi";
 import type { SafeUser } from "../types/auth";
 
@@ -49,9 +49,14 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                     Your profile is ready for recommendations.
                 </p>
 
-                <button className="secondary-button" onClick={handleLogout}>
-                    Logout
-                </button>
+                <div className="dashboard-actions">
+                    <Link className="primary-button nav-button" to="/recommendations">
+                        View recommendations
+                    </Link>
+                    <button className="secondary-button" onClick={handleLogout}>
+                        Logout
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import ArtistSelector from "../components/ArtistSelector";
 import GenreSelector from "../components/GenreSelector";
 import { getArtists, getGenres, signup } from "../api/authApi";
-import heroImage from "../assets/hero.png";
+import MusicLogo from "../components/MusicLogo";
 import type { OnboardingArtist, SafeUser, UserRole } from "../types/auth";
 
 interface SignupPageProps {
@@ -190,11 +190,7 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
     return (
         <main className="auth-page signup-page">
             <section className="signup-showcase">
-                <img
-                    src={heroImage}
-                    alt="Colorful music player artwork"
-                    className="signup-artwork"
-                />
+                <MusicLogo className="signup-artwork" />
                 <div>
                     <p className="eyebrow">New profile</p>
                     <h1>Build your sound map.</h1>

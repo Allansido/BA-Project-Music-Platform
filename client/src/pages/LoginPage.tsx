@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/authApi";
-import heroImage from "../assets/hero.png";
+import MusicLogo from "../components/MusicLogo";
 import type { SafeUser } from "../types/auth";
 
 interface LoginPageProps {
@@ -38,11 +38,7 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
     return (
         <main className="auth-page login-page">
             <section className="signup-showcase compact">
-                <img
-                    src={heroImage}
-                    alt="Colorful music player artwork"
-                    className="signup-artwork"
-                />
+                <MusicLogo className="signup-artwork" />
                 <div>
                     <p className="eyebrow">Welcome back</p>
                     <h1>Your music profile is ready.</h1>
