@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const session_1 = require("./session");
 const authRoutes_1 = __importDefault(require("./routes/authRoutes"));
+const recommendationRoutes_1 = __importDefault(require("../routes/recommendationRoutes"));
 const app = (0, express_1.default)();
 const allowedOrigins = new Set([
     "http://localhost:5173",
@@ -28,4 +29,5 @@ app.get("/api/health", (_req, res) => {
     res.json({ message: "Backend is running." });
 });
 app.use("/api/auth", authRoutes_1.default);
+app.use("/api/recommendations", recommendationRoutes_1.default);
 exports.default = app;
