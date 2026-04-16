@@ -1,3 +1,4 @@
+
 import "dotenv/config";
 import app from "./presentation/server/app";
 import { initUserStore } from "./domain/auth/userStore";

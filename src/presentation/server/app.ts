@@ -3,12 +3,12 @@ import cors from "cors";
 import { sessionMiddleware } from "./session";
 import authRoutes from "./routes/authRoutes";
 
+
 const app = express();
 const allowedOrigins = new Set([
     "http://localhost:5173",
     "http://127.0.0.1:5173"
 ]);
-
 app.use(
     cors({
         origin(origin, callback) {
@@ -31,5 +31,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/recommendations", recommendationRoutes);0
 
 export default app;
+

@@ -4,3 +4,8 @@ data/
 .env
 *.tsv
 *.json
+!client/package.json
+!client/package-lock.json
+node_modules
+dataset
+dist

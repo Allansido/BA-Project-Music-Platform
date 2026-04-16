@@ -22,6 +22,7 @@ router.get("/artists", (_req: Request, res: Response) => {
 });
 
 router.get("/me", async (req: Request, res: Response) => {
+
     const session = req.session as SessionWithUserId;
     const userId = session.userId;
 
@@ -30,7 +31,7 @@ router.get("/me", async (req: Request, res: Response) => {
     }
 
     const user = await getSafeUserById(userId);
-
+  
     if (!user) {
         req.session.destroy(() => { });
         return res.status(401).json({ message: "Session is invalid." });
