@@ -1,21 +1,14 @@
-import { QueryResult } from "pg";
-import { pool } from "../../infrastructure/database";
-import { User, UserRole } from "./types";
-
-interface UserRow {
-    id: string;
-    name: string;
-    email: string;
-    password_hash: string;
-    role: string;
-    genres: string[] | string;
-    favorite_artists: string[] | string;
-}
-
-let initPromise: Promise<void> | null = null;
-
-export function initUserStore(): Promise<void> {
-    initPromise ??= pool.query(`
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.initUserStore = initUserStore;
+exports.findUserByEmail = findUserByEmail;
+exports.findUserById = findUserById;
+exports.createUser = createUser;
+exports.getAllUsers = getAllUsers;
+const database_1 = require("../../infrastructure/database");
+let initPromise = null;
+function initUserStore() {
+    initPromise ?? (initPromise = database_1.pool.query(`
         CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY,
             name TEXT NOT NULL,
@@ -48,80 +41,54 @@ export function initUserStore(): Promise<void> {
         BEFORE UPDATE ON users
         FOR EACH ROW
         EXECUTE FUNCTION set_updated_at_timestamp();
-    `).then(() => undefined);
-
+    `).then(() => undefined));
     return initPromise;
 }
-
-function parseStringArray(value: string[] | string): string[] {
-    const parsedValue: unknown =
-        typeof value === "string" ? JSON.parse(value) : value;
-
+function parseStringArray(value) {
+    const parsedValue = typeof value === "string" ? JSON.parse(value) : value;
     if (!Array.isArray(parsedValue)) {
         return [];
     }
-
-    return parsedValue.filter(
-        (item): item is string => typeof item === "string"
-    );
+    return parsedValue.filter((item) => typeof item === "string");
 }
-
-function toUser(row: UserRow): User {
+function toUser(row) {
     return {
         id: row.id,
         name: row.name,
         email: row.email,
         passwordHash: row.password_hash,
-        role: row.role as UserRole,
+        role: row.role,
         genres: parseStringArray(row.genres),
         favoriteArtists: parseStringArray(row.favorite_artists)
     };
 }
-
-function firstUser(result: QueryResult<UserRow>): User | undefined {
+function firstUser(result) {
     const row = result.rows[0];
     return row ? toUser(row) : undefined;
 }
-
-export async function findUserByEmail(
-    email: string
-): Promise<User | undefined> {
+async function findUserByEmail(email) {
     await initUserStore();
-
-    const result = await pool.query<UserRow>(
-        `
+    const result = await database_1.pool.query(`
             SELECT id, name, email, password_hash, role, genres, favorite_artists
             FROM users
             WHERE LOWER(email) = LOWER($1)
             LIMIT 1
-        `,
-        [email]
-    );
-
+        `, [email]);
     return firstUser(result);
 }
-
-export async function findUserById(id: string): Promise<User | undefined> {
+async function findUserById(id) {
     await initUserStore();
-
-    const result = await pool.query<UserRow>(
-        `
+    const result = await database_1.pool.query(`
             SELECT id, name, email, password_hash, role, genres, favorite_artists
             FROM users
             WHERE id = $1
             LIMIT 1
-        `,
-        [id]
-    );
-
+        `, [id]);
     return firstUser(result);
 }
-
-export async function createUser(user: User): Promise<User> {
+async function createUser(user) {
     await initUserStore();
-
-    await pool.query(
-        `
+    await database_1.pool.query(`
             INSERT INTO users (
                 id,
                 name,
@@ -132,29 +99,23 @@ export async function createUser(user: User): Promise<User> {
                 favorite_artists
             )
             VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
-        `,
-        [
-            user.id,
-            user.name,
-            user.email,
-            user.passwordHash,
-            user.role,
-            JSON.stringify(user.genres),
-            JSON.stringify(user.favoriteArtists)
-        ]
-    );
-
+        `, [
+        user.id,
+        user.name,
+        user.email,
+        user.passwordHash,
+        user.role,
+        JSON.stringify(user.genres),
+        JSON.stringify(user.favoriteArtists)
+    ]);
     return user;
 }
-
-export async function getAllUsers(): Promise<User[]> {
+async function getAllUsers() {
     await initUserStore();
-
-    const result = await pool.query<UserRow>(`
+    const result = await database_1.pool.query(`
         SELECT id, name, email, password_hash, role, genres, favorite_artists
         FROM users
         ORDER BY created_at ASC
     `);
-
     return result.rows.map(toUser);
 }
