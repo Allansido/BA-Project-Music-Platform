@@ -5,6 +5,7 @@ import { getCurrentUser } from "./api/authApi";
 import ProtectedRoute from "./components/ProtectedRoute";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
+import RecommendationsPage from "./pages/RecommendationsPage";
 import SignupPage from "./pages/SignupPage";
 import type { SafeUser } from "./types/auth";
 
@@ -66,6 +67,14 @@ function App() {
                 element={
                     <ProtectedRoute user={user}>
                         <DashboardPage user={user as SafeUser} onLogout={() => setUser(null)} />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/recommendations"
+                element={
+                    <ProtectedRoute user={user}>
+                        <RecommendationsPage />
                     </ProtectedRoute>
                 }
             />
