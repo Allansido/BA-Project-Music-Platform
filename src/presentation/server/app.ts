@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { sessionMiddleware } from "./session";
 import authRoutes from "./routes/authRoutes";
-
+import recommendationRoutes from "../routes/recommendationRoutes";
 
 const app = express();
 const allowedOrigins = new Set([
@@ -31,7 +31,6 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
-app.use("/api/recommendations", recommendationRoutes);0
+app.use("/api/recommendations", recommendationRoutes);
 
 export default app;
-
