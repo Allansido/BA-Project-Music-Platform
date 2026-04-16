@@ -2,6 +2,8 @@ dataset/
 data/
 *.tsv
 *.json
+!client/package.json
+!client/package-lock.json
 node_modules
 dataset
 dist
