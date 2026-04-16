@@ -6,6 +6,7 @@ export interface SafeUser {
     email: string;
     role: UserRole;
     genres: string[];
+    favoriteArtists: string[];
 }
 
 export interface SignupPayload {
@@ -14,9 +15,18 @@ export interface SignupPayload {
     password: string;
     role: UserRole;
     genres: string[];
+    favoriteArtists: string[];
 }
 
 export interface LoginPayload {
     email: string;
     password: string;
+}
+
+export interface OnboardingArtist {
+    id: string;
+    name: string;
+    playCount: number;
+    listenerCount: number;
+    segment: "emerging" | "established";
 }

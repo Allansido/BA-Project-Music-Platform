@@ -1,4 +1,9 @@
-import type { LoginPayload, SafeUser, SignupPayload } from "../types/auth";
+import type {
+    LoginPayload,
+    OnboardingArtist,
+    SafeUser,
+    SignupPayload
+} from "../types/auth";
 
 const API_BASE_URL = "http://localhost:3000/api/auth";
 
@@ -18,6 +23,14 @@ export async function getGenres(): Promise<string[]> {
     });
 
     return handleResponse<string[]>(response);
+}
+
+export async function getArtists(): Promise<OnboardingArtist[]> {
+    const response = await fetch(`${API_BASE_URL}/artists`, {
+        credentials: "include"
+    });
+
+    return handleResponse<OnboardingArtist[]>(response);
 }
 
 export async function getCurrentUser(): Promise<SafeUser> {

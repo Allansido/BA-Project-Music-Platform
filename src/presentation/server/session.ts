@@ -1,7 +1,7 @@
 import session from "express-session";
 
 export const sessionMiddleware = session({
-    secret: "dev-secret-change-this-later",
+    secret: process.env.SESSION_SECRET ?? "dev-secret-change-this-later",
     resave: false,
     saveUninitialized: false,
     cookie: {
