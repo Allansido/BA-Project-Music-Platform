@@ -1,5 +1,7 @@
+node_modules/
 dataset/
 data/
+.env
 *.tsv
 *.json
 !client/package.json

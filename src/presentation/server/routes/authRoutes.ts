@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import {
+    getAvailableArtists,
     getAvailableGenres,
     getSafeUserById,
     loginUser,
@@ -16,7 +17,12 @@ router.get("/genres", (_req: Request, res: Response) => {
     res.json(getAvailableGenres());
 });
 
-router.get("/me", (req: Request, res: Response) => {
+router.get("/artists", (_req: Request, res: Response) => {
+    res.json(getAvailableArtists());
+});
+
+router.get("/me", async (req: Request, res: Response) => {
+
     const session = req.session as SessionWithUserId;
     const userId = session.userId;
 
@@ -24,8 +30,8 @@ router.get("/me", (req: Request, res: Response) => {
         return res.status(401).json({ message: "Not logged in." });
     }
 
-    const user = getSafeUserById(userId);
-
+    const user = await getSafeUserById(userId);
+  
     if (!user) {
         req.session.destroy(() => { });
         return res.status(401).json({ message: "Session is invalid." });

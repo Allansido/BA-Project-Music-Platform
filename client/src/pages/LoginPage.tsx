@@ -1,6 +1,8 @@
 import { useState } from "react";
-import type { FormEvent } from "react";import { Link, useNavigate } from "react-router-dom";
+import type { FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/authApi";
+import heroImage from "../assets/hero.png";
 import type { SafeUser } from "../types/auth";
 
 interface LoginPageProps {
@@ -34,10 +36,25 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
     }
 
     return (
-        <div className="page-container">
-            <div className="auth-card">
-                <h1>Login</h1>
-                <p className="subtitle">Sign in to your account.</p>
+        <main className="auth-page login-page">
+            <section className="signup-showcase compact">
+                <img
+                    src={heroImage}
+                    alt="Colorful music player artwork"
+                    className="signup-artwork"
+                />
+                <div>
+                    <p className="eyebrow">Welcome back</p>
+                    <h1>Your music profile is ready.</h1>
+                    <p className="subtitle">
+                        Sign in to continue from your saved taste profile.
+                    </p>
+                </div>
+            </section>
+
+            <section className="login-panel" aria-label="Login">
+                <h2>Login</h2>
+                <p className="subtitle">Use the email and password you signed up with.</p>
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">
@@ -80,8 +97,8 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <p className="switch-text">
                     No account yet? <Link to="/signup">Create an account</Link>
                 </p>
-            </div>
-        </div>
+            </section>
+        </main>
     );
 }
 
