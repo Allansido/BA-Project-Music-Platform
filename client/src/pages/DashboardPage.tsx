@@ -37,10 +37,16 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                     <p>
                         <strong>Genres:</strong> {user.genres.join(", ")}
                     </p>
+                    <p>
+                        <strong>Artists:</strong>{" "}
+                        {user.favoriteArtists.length > 0
+                            ? user.favoriteArtists.join(", ")
+                            : "No artists selected yet"}
+                    </p>
                 </div>
 
                 <p className="empty-site-text">
-                    Placeholder for now
+                    Your profile is ready for recommendations.
                 </p>
 
                 <button className="secondary-button" onClick={handleLogout}>
