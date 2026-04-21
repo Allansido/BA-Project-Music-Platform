@@ -17,12 +17,16 @@ function initUserStore() {
             role TEXT NOT NULL CHECK (role IN ('artist', 'producer', 'listener')),
             genres JSONB NOT NULL DEFAULT '[]'::jsonb,
             favorite_artists JSONB NOT NULL DEFAULT '[]'::jsonb,
+            role_details JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
         ALTER TABLE users
             ADD COLUMN IF NOT EXISTS favorite_artists JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+        ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS role_details JSONB NOT NULL DEFAULT '{}'::jsonb;
 
         CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx
             ON users (LOWER(email));
@@ -51,6 +55,13 @@ function parseStringArray(value) {
     }
     return parsedValue.filter((item) => typeof item === "string");
 }
+function parseRoleDetails(value) {
+    const parsedValue = typeof value === "string" ? JSON.parse(value) : value;
+    if (!parsedValue || typeof parsedValue !== "object" || Array.isArray(parsedValue)) {
+        return {};
+    }
+    return parsedValue;
+}
 function toUser(row) {
     return {
         id: row.id,
@@ -59,7 +70,8 @@ function toUser(row) {
         passwordHash: row.password_hash,
         role: row.role,
         genres: parseStringArray(row.genres),
-        favoriteArtists: parseStringArray(row.favorite_artists)
+        favoriteArtists: parseStringArray(row.favorite_artists),
+        roleDetails: parseRoleDetails(row.role_details)
     };
 }
 function firstUser(result) {
@@ -69,7 +81,7 @@ function firstUser(result) {
 async function findUserByEmail(email) {
     await initUserStore();
     const result = await database_1.pool.query(`
-            SELECT id, name, email, password_hash, role, genres, favorite_artists
+            SELECT id, name, email, password_hash, role, genres, favorite_artists, role_details
             FROM users
             WHERE LOWER(email) = LOWER($1)
             LIMIT 1
@@ -79,7 +91,7 @@ async function findUserByEmail(email) {
 async function findUserById(id) {
     await initUserStore();
     const result = await database_1.pool.query(`
-            SELECT id, name, email, password_hash, role, genres, favorite_artists
+            SELECT id, name, email, password_hash, role, genres, favorite_artists, role_details
             FROM users
             WHERE id = $1
             LIMIT 1
@@ -96,9 +108,10 @@ async function createUser(user) {
                 password_hash,
                 role,
                 genres,
-                favorite_artists
+                favorite_artists,
+                role_details
             )
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)
         `, [
         user.id,
         user.name,
@@ -106,14 +119,15 @@ async function createUser(user) {
         user.passwordHash,
         user.role,
         JSON.stringify(user.genres),
-        JSON.stringify(user.favoriteArtists)
+        JSON.stringify(user.favoriteArtists),
+        JSON.stringify(user.roleDetails)
     ]);
     return user;
 }
 async function getAllUsers() {
     await initUserStore();
     const result = await database_1.pool.query(`
-        SELECT id, name, email, password_hash, role, genres, favorite_artists
+        SELECT id, name, email, password_hash, role, genres, favorite_artists, role_details
         FROM users
         ORDER BY created_at ASC
     `);

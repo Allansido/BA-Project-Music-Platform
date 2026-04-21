@@ -17,8 +17,14 @@ router.get("/genres", (_req: Request, res: Response) => {
     res.json(getAvailableGenres());
 });
 
-router.get("/artists", (_req: Request, res: Response) => {
-    res.json(getAvailableArtists());
+router.get("/artists", async (_req: Request, res: Response) => {
+    try {
+        res.json(await getAvailableArtists());
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Could not load artists.";
+        res.status(500).json({ message });
+    }
 });
 
 router.get("/me", async (req: Request, res: Response) => {
