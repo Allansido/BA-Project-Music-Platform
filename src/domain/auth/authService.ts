@@ -3,7 +3,10 @@ import { getOnboardingArtists, OnboardingArtist } from "./artistData";
 import { AVAILABLE_GENRES } from "./genreData";
 import { createUser, findUserByEmail, findUserById } from "./userStore";
 import {
+    ArtistDetails,
     LoginInput,
+    ProducerDetails,
+    RoleDetails,
     SafeUser,
     SignupInput,
     User,
@@ -29,8 +32,83 @@ function normalizeFavoriteArtists(favoriteArtists: string[]): string[] {
     );
 }
 
+function normalizeString(value: string | undefined): string {
+    return value?.trim() ?? "";
+}
+
+function normalizeStringArray(values: string[] | undefined): string[] {
+    return [...new Set((values ?? []).map((value) => value.trim()))].filter(
+        Boolean
+    );
+}
+
 function isValidEmail(email: string): boolean {
     return /\S+@\S+\.\S+/.test(email);
+}
+
+function getNormalizedRoleDetails(input: SignupInput): RoleDetails {
+    const roleDetails = input.roleDetails ?? {};
+
+    if (input.role === "artist") {
+        const artistDetails = roleDetails.artist;
+
+        return {
+            artist: {
+                artistName: normalizeString(artistDetails?.artistName),
+                location: normalizeString(artistDetails?.location),
+                bio: normalizeString(artistDetails?.bio),
+                releaseStatus: normalizeString(artistDetails?.releaseStatus)
+            }
+        };
+    }
+
+    if (input.role === "producer") {
+        const producerDetails = roleDetails.producer;
+
+        return {
+            producer: {
+                producerName: normalizeString(producerDetails?.producerName),
+                studioName: normalizeString(producerDetails?.studioName),
+                services: normalizeStringArray(producerDetails?.services),
+                tools: normalizeString(producerDetails?.tools),
+                collaborationGoal: normalizeString(
+                    producerDetails?.collaborationGoal
+                )
+            }
+        };
+    }
+
+    return {
+        listener: {
+            discoveryGoal: normalizeString(roleDetails.listener?.discoveryGoal)
+        }
+    };
+}
+
+function validateArtistDetails(artistDetails: ArtistDetails | undefined): void {
+    if (!artistDetails?.artistName) {
+        throw new Error("Artist name is required.");
+    }
+
+    if (!artistDetails.releaseStatus) {
+        throw new Error("Please choose where you are in your artist journey.");
+    }
+}
+
+function validateProducerDetails(
+    producerDetails: ProducerDetails | undefined
+): void {
+    if (!producerDetails?.producerName) {
+        throw new Error("Producer name is required.");
+    }
+
+    if (producerDetails.services.length === 0) {
+        throw new Error("Please choose at least one producer service.");
+    }
+
+    if (!producerDetails.collaborationGoal) {
+        throw new Error("Please choose a collaboration goal.");
+    }
 }
 
 function toSafeUser(user: User): SafeUser {
@@ -40,11 +118,12 @@ function toSafeUser(user: User): SafeUser {
         email: user.email,
         role: user.role,
         genres: user.genres,
-        favoriteArtists: user.favoriteArtists
+        favoriteArtists: user.favoriteArtists,
+        roleDetails: user.roleDetails
     };
 }
 
-function validateSignupInput(input: SignupInput): void {
+async function validateSignupInput(input: SignupInput): Promise<void> {
     const name = input.name?.trim();
     const email = normalizeEmail(input.email ?? "");
     const password = input.password ?? "";
@@ -78,6 +157,16 @@ function validateSignupInput(input: SignupInput): void {
         throw new Error("Please choose a valid account type.");
     }
 
+    const roleDetails = getNormalizedRoleDetails(input);
+
+    if (role === "artist") {
+        validateArtistDetails(roleDetails.artist);
+    }
+
+    if (role === "producer") {
+        validateProducerDetails(roleDetails.producer);
+    }
+
     if (genres.length < MIN_GENRE_COUNT) {
         throw new Error(`Please choose at least ${MIN_GENRE_COUNT} genres.`);
     }
@@ -95,7 +184,7 @@ function validateSignupInput(input: SignupInput): void {
     }
 
     const availableArtistNames = new Set(
-        getOnboardingArtists().map((artist) => artist.name)
+        (await getOnboardingArtists()).map((artist) => artist.name)
     );
     const invalidArtists = favoriteArtists.filter(
         (artist) => !availableArtistNames.has(artist)
@@ -107,12 +196,13 @@ function validateSignupInput(input: SignupInput): void {
 }
 
 export async function registerUser(input: SignupInput): Promise<SafeUser> {
-    validateSignupInput(input);
+    await validateSignupInput(input);
 
     const normalizedEmail = normalizeEmail(input.email);
     const trimmedName = input.name.trim();
     const normalizedGenres = normalizeGenres(input.genres);
     const normalizedFavoriteArtists = normalizeFavoriteArtists(input.favoriteArtists);
+    const normalizedRoleDetails = getNormalizedRoleDetails(input);
 
     const existingUser = await findUserByEmail(normalizedEmail);
 
@@ -129,7 +219,8 @@ export async function registerUser(input: SignupInput): Promise<SafeUser> {
         passwordHash,
         role: input.role,
         genres: normalizedGenres,
-        favoriteArtists: normalizedFavoriteArtists
+        favoriteArtists: normalizedFavoriteArtists,
+        roleDetails: normalizedRoleDetails
     };
 
     await createUser(newUser);
@@ -174,6 +265,6 @@ export function getAvailableGenres(): string[] {
     return AVAILABLE_GENRES;
 }
 
-export function getAvailableArtists(): OnboardingArtist[] {
+export function getAvailableArtists(): Promise<OnboardingArtist[]> {
     return getOnboardingArtists();
 }
