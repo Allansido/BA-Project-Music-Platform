@@ -5,6 +5,20 @@ export function saveInteractionsToJSON(
     interactions: Interaction[],
     outputPath: string
 ) {
-    fs.writeFileSync(outputPath, JSON.stringify(interactions, null, 2));
+    const output = fs.openSync(outputPath, "w");
+
+    try {
+        fs.writeSync(output, "[\n");
+
+        interactions.forEach((interaction, index) => {
+            const prefix = index === 0 ? "  " : ",\n  ";
+            fs.writeSync(output, `${prefix}${JSON.stringify(interaction)}`);
+        });
+
+        fs.writeSync(output, "\n]\n");
+    } finally {
+        fs.closeSync(output);
+    }
+
     console.log(`Saved processed data to ${outputPath}`);
 }

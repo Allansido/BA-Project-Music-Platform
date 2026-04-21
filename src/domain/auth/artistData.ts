@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { splitArtistsBySegment } from "../artistSegmentation";
+import readline from "readline";
 import { Interaction } from "../../data/dataset_modules/lastfmLoader";
 
 export interface OnboardingArtist {
@@ -22,7 +22,15 @@ interface ArtistSegmentFile {
     }>;
 }
 
+interface MutableArtistStats {
+    id: string;
+    name: string;
+    playCount: number;
+    listeners: Set<string>;
+}
+
 const ARTIST_LIMIT = 60;
+const ESTABLISHED_ARTIST_RATIO = 0.2;
 const artistSegmentsPath = path.join(
     process.cwd(),
     "dataset",
@@ -37,6 +45,7 @@ const interactionsPath = path.join(
 );
 
 let cachedArtists: OnboardingArtist[] | null = null;
+let loadingArtists: Promise<OnboardingArtist[]> | null = null;
 
 function readJsonFile<T>(filePath: string): T | null {
     if (!fs.existsSync(filePath)) {
@@ -46,8 +55,35 @@ function readJsonFile<T>(filePath: string): T | null {
     return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
 }
 
-function cleanArtistName(name: string | undefined): string {
-    return name?.trim() ?? "";
+function cleanText(value: string | undefined): string {
+    return value?.trim() ?? "";
+}
+
+function parseInteractionLine(line: string): Interaction | null {
+    let jsonLine = line.trim();
+
+    if (!jsonLine || jsonLine === "[" || jsonLine === "]") {
+        return null;
+    }
+
+    if (jsonLine.endsWith(",")) {
+        jsonLine = jsonLine.slice(0, -1);
+    }
+
+    return JSON.parse(jsonLine) as Interaction;
+}
+
+function toArtistStats(
+    stats: MutableArtistStats,
+    segment: "emerging" | "established"
+): OnboardingArtist {
+    return {
+        id: stats.id,
+        name: stats.name,
+        playCount: stats.playCount,
+        listenerCount: stats.listeners.size,
+        segment
+    };
 }
 
 function uniqueArtists(artists: OnboardingArtist[]): OnboardingArtist[] {
@@ -85,8 +121,8 @@ function readArtistsFromSegments(): OnboardingArtist[] {
 
     return uniqueArtists(
         segmentData.allArtists.map((artist) => ({
-            id: artist.artistId || artist.artistKey || cleanArtistName(artist.artistName),
-            name: cleanArtistName(artist.artistName),
+            id: artist.artistId || artist.artistKey || cleanText(artist.artistName),
+            name: cleanText(artist.artistName),
             playCount: artist.playCount ?? 0,
             listenerCount: artist.listenerCount ?? 0,
             segment: artist.segment ?? "emerging"
@@ -96,32 +132,83 @@ function readArtistsFromSegments(): OnboardingArtist[] {
         .slice(0, ARTIST_LIMIT);
 }
 
-function readArtistsFromInteractions(): OnboardingArtist[] {
-    const interactions = readJsonFile<Interaction[]>(interactionsPath);
-
-    if (!interactions) {
+async function readArtistsFromInteractions(): Promise<OnboardingArtist[]> {
+    if (!fs.existsSync(interactionsPath)) {
         return [];
     }
 
-    return splitArtistsBySegment(interactions)
-        .allArtists.map((artist) => ({
-            id: artist.artistId || artist.artistKey,
-            name: cleanArtistName(artist.artistName),
-            playCount: artist.playCount,
-            listenerCount: artist.listenerCount,
-            segment: artist.segment
-        }))
-        .filter((artist) => artist.name)
-        .sort(byPopularity)
-        .slice(0, ARTIST_LIMIT);
-}
+    const artistsByKey = new Map<string, MutableArtistStats>();
+    const lines = readline.createInterface({
+        input: fs.createReadStream(interactionsPath, { encoding: "utf8" }),
+        crlfDelay: Infinity
+    });
 
-export function getOnboardingArtists(): OnboardingArtist[] {
-    cachedArtists ??= readArtistsFromSegments();
+    for await (const line of lines) {
+        const interaction = parseInteractionLine(line);
 
-    if (cachedArtists.length === 0) {
-        cachedArtists = readArtistsFromInteractions();
+        if (!interaction) {
+            continue;
+        }
+
+        const artistId = cleanText(interaction.artistId);
+        const artistName = cleanText(interaction.artistName);
+        const artistKey = artistId || artistName.toLowerCase();
+
+        if (!artistKey || !artistName) {
+            continue;
+        }
+
+        const stats =
+            artistsByKey.get(artistKey) ??
+            {
+                id: artistId || artistKey,
+                name: artistName,
+                playCount: 0,
+                listeners: new Set<string>()
+            };
+
+        stats.playCount += 1;
+        stats.listeners.add(interaction.userId);
+        artistsByKey.set(artistKey, stats);
     }
 
-    return cachedArtists;
+    const unsegmentedArtists = [...artistsByKey.values()]
+        .map((stats) => toArtistStats(stats, "emerging"))
+        .sort(byPopularity);
+    const establishedArtistCount = Math.ceil(
+        unsegmentedArtists.length * ESTABLISHED_ARTIST_RATIO
+    );
+    const establishedArtistKeys = new Set(
+        unsegmentedArtists
+            .slice(0, establishedArtistCount)
+            .map((artist) => artist.id)
+    );
+
+    return uniqueArtists(
+        unsegmentedArtists.map((artist) => ({
+            ...artist,
+            segment: establishedArtistKeys.has(artist.id)
+                ? "established"
+                : "emerging"
+        }))
+    ).slice(0, ARTIST_LIMIT);
+}
+
+export async function getOnboardingArtists(): Promise<OnboardingArtist[]> {
+    if (cachedArtists) {
+        return cachedArtists;
+    }
+
+    loadingArtists ??= (async () => {
+        const segmentedArtists = readArtistsFromSegments();
+
+        cachedArtists =
+            segmentedArtists.length > 0
+                ? segmentedArtists
+                : await readArtistsFromInteractions();
+
+        return cachedArtists;
+    })();
+
+    return loadingArtists;
 }

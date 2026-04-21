@@ -4,21 +4,38 @@ import type {
     SafeUser,
     SignupPayload
 } from "../types/auth";
-
-const API_BASE_URL = "http://localhost:3000/api/auth";
+import { AUTH_API_BASE_URL } from "./config";
 
 async function handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
+    const responseText = await response.text();
+    let data: unknown = null;
 
-    if (!response.ok) {
-        throw new Error(data.message || "Something went wrong.");
+    try {
+        data = responseText ? JSON.parse(responseText) : null;
+    } catch {
+        if (!response.ok) {
+            throw new Error("The auth server returned an invalid response.");
+        }
+
+        throw new Error("Could not read auth response.");
     }
 
-    return data;
+    if (!response.ok) {
+        const message =
+            data &&
+            typeof data === "object" &&
+            "message" in data &&
+            typeof data.message === "string"
+                ? data.message
+                : "Something went wrong.";
+        throw new Error(message);
+    }
+
+    return data as T;
 }
 
 export async function getGenres(): Promise<string[]> {
-    const response = await fetch(`${API_BASE_URL}/genres`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/genres`, {
         credentials: "include"
     });
 
@@ -26,7 +43,7 @@ export async function getGenres(): Promise<string[]> {
 }
 
 export async function getArtists(): Promise<OnboardingArtist[]> {
-    const response = await fetch(`${API_BASE_URL}/artists`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/artists`, {
         credentials: "include"
     });
 
@@ -34,7 +51,7 @@ export async function getArtists(): Promise<OnboardingArtist[]> {
 }
 
 export async function getCurrentUser(): Promise<SafeUser> {
-    const response = await fetch(`${API_BASE_URL}/me`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/me`, {
         credentials: "include"
     });
 
@@ -42,7 +59,7 @@ export async function getCurrentUser(): Promise<SafeUser> {
 }
 
 export async function signup(payload: SignupPayload): Promise<SafeUser> {
-    const response = await fetch(`${API_BASE_URL}/signup`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/signup`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -55,7 +72,7 @@ export async function signup(payload: SignupPayload): Promise<SafeUser> {
 }
 
 export async function login(payload: LoginPayload): Promise<SafeUser> {
-    const response = await fetch(`${API_BASE_URL}/login`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/login`, {
         method: "POST",
         credentials: "include",
         headers: {
@@ -68,7 +85,7 @@ export async function login(payload: LoginPayload): Promise<SafeUser> {
 }
 
 export async function logout(): Promise<{ message: string }> {
-    const response = await fetch(`${API_BASE_URL}/logout`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/logout`, {
         method: "POST",
         credentials: "include"
     });

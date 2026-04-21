@@ -4,19 +4,45 @@ import { Link, useNavigate } from "react-router-dom";
 import ArtistSelector from "../components/ArtistSelector";
 import GenreSelector from "../components/GenreSelector";
 import { getArtists, getGenres, signup } from "../api/authApi";
-import heroImage from "../assets/hero.png";
+import MusicLogo from "../components/MusicLogo";
 import type { OnboardingArtist, SafeUser, UserRole } from "../types/auth";
 
 interface SignupPageProps {
     onSignupSuccess: (user: SafeUser) => void;
 }
 
-type SignupStep = 0 | 1 | 2 | 3 | 4;
+type SignupStep = 0 | 1 | 2 | 3 | 4 | 5;
 
-const signupSteps = ["Account", "Type", "Genres", "Artists", "Review"];
+const signupSteps = ["Account", "Type", "Profile", "Genres", "Artists", "Review"];
 const MIN_PASSWORD_LENGTH = 8;
 const MIN_GENRE_COUNT = 3;
 const MIN_ARTIST_COUNT = 3;
+const producerServices = [
+    "Beat making",
+    "Recording",
+    "Mixing",
+    "Mastering",
+    "Songwriting",
+    "Artist development"
+];
+const releaseStatuses = [
+    "Preparing first release",
+    "Released music already",
+    "Actively performing",
+    "Looking for collaborators"
+];
+const collaborationGoals = [
+    "Find artists to produce",
+    "Find co-producers",
+    "Offer studio services",
+    "Discover emerging talent"
+];
+const listenerGoals = [
+    "Find new favorite artists",
+    "Follow local scenes",
+    "Get better recommendations",
+    "Explore outside my comfort zone"
+];
 
 const roleOptions: Array<{
     value: UserRole;
@@ -53,6 +79,24 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
     const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
     const [selectedArtists, setSelectedArtists] = useState<string[]>([]);
     const [artistSearchTerm, setArtistSearchTerm] = useState("");
+    const [listenerDiscoveryGoal, setListenerDiscoveryGoal] = useState(
+        listenerGoals[0]
+    );
+    const [artistName, setArtistName] = useState("");
+    const [artistLocation, setArtistLocation] = useState("");
+    const [artistBio, setArtistBio] = useState("");
+    const [artistReleaseStatus, setArtistReleaseStatus] = useState(
+        releaseStatuses[0]
+    );
+    const [producerName, setProducerName] = useState("");
+    const [studioName, setStudioName] = useState("");
+    const [selectedProducerServices, setSelectedProducerServices] = useState<
+        string[]
+    >([]);
+    const [producerTools, setProducerTools] = useState("");
+    const [producerCollaborationGoal, setProducerCollaborationGoal] = useState(
+        collaborationGoals[0]
+    );
     const [errorMessage, setErrorMessage] = useState("");
     const [genreError, setGenreError] = useState("");
     const [artistError, setArtistError] = useState("");
@@ -65,14 +109,28 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
 
     useEffect(() => {
         async function loadSignupChoices() {
-            try {
-                const [genres, artists] = await Promise.all([
-                    getGenres(),
-                    getArtists()
-                ]);
+            const [genresResult, artistsResult] = await Promise.allSettled([
+                getGenres(),
+                getArtists()
+            ]);
+
+            if (genresResult.status === "fulfilled") {
+                const genres = genresResult.value;
                 setAvailableGenres(genres);
+            }
+
+            if (artistsResult.status === "fulfilled") {
+                const artists = artistsResult.value;
                 setAvailableArtists(artists);
-            } catch (error) {
+            }
+
+            if (genresResult.status === "rejected" || artistsResult.status === "rejected") {
+                const error =
+                    genresResult.status === "rejected"
+                        ? genresResult.reason
+                        : artistsResult.status === "rejected"
+                          ? artistsResult.reason
+                          : null;
                 const message =
                     error instanceof Error
                         ? error.message
@@ -110,6 +168,49 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
         });
     }
 
+    function toggleProducerService(service: string) {
+        setSelectedProducerServices((currentServices) => {
+            if (currentServices.includes(service)) {
+                return currentServices.filter(
+                    (currentService) => currentService !== service
+                );
+            }
+
+            return [...currentServices, service];
+        });
+    }
+
+    function buildRoleDetails() {
+        if (role === "artist") {
+            return {
+                artist: {
+                    artistName,
+                    location: artistLocation,
+                    bio: artistBio,
+                    releaseStatus: artistReleaseStatus
+                }
+            };
+        }
+
+        if (role === "producer") {
+            return {
+                producer: {
+                    producerName,
+                    studioName,
+                    services: selectedProducerServices,
+                    tools: producerTools,
+                    collaborationGoal: producerCollaborationGoal
+                }
+            };
+        }
+
+        return {
+            listener: {
+                discoveryGoal: listenerDiscoveryGoal
+            }
+        };
+    }
+
     function validateCurrentStep(): boolean {
         setErrorMessage("");
         setGenreError("");
@@ -129,12 +230,32 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
             }
         }
 
-        if (currentStep === 2 && selectedGenres.length < MIN_GENRE_COUNT) {
+        if (currentStep === 2) {
+            if (role === "artist" && !artistName.trim()) {
+                setErrorMessage("Add your artist or project name to continue.");
+                return false;
+            }
+
+            if (role === "producer" && !producerName.trim()) {
+                setErrorMessage("Add your producer name to continue.");
+                return false;
+            }
+
+            if (
+                role === "producer" &&
+                selectedProducerServices.length === 0
+            ) {
+                setErrorMessage("Choose at least one producer service.");
+                return false;
+            }
+        }
+
+        if (currentStep === 3 && selectedGenres.length < MIN_GENRE_COUNT) {
             setGenreError(`Choose at least ${MIN_GENRE_COUNT} genres.`);
             return false;
         }
 
-        if (currentStep === 3 && selectedArtists.length < MIN_ARTIST_COUNT) {
+        if (currentStep === 4 && selectedArtists.length < MIN_ARTIST_COUNT) {
             setArtistError(`Choose at least ${MIN_ARTIST_COUNT} artists.`);
             return false;
         }
@@ -147,7 +268,7 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
             return;
         }
 
-        setCurrentStep((step) => Math.min(step + 1, 4) as SignupStep);
+        setCurrentStep((step) => Math.min(step + 1, 5) as SignupStep);
     }
 
     function goToPreviousStep() {
@@ -173,7 +294,8 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                 password,
                 role,
                 genres: selectedGenres,
-                favoriteArtists: selectedArtists
+                favoriteArtists: selectedArtists,
+                roleDetails: buildRoleDetails()
             });
 
             onSignupSuccess(user);
@@ -190,11 +312,7 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
     return (
         <main className="auth-page signup-page">
             <section className="signup-showcase">
-                <img
-                    src={heroImage}
-                    alt="Colorful music player artwork"
-                    className="signup-artwork"
-                />
+                <MusicLogo className="signup-artwork" />
                 <div>
                     <p className="eyebrow">New profile</p>
                     <h1>Build your sound map.</h1>
@@ -318,7 +436,257 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                     {currentStep === 2 ? (
                         <div className="signup-step">
                             <p className="eyebrow">Step 3</p>
-                            <h2>Pick a few genres</h2>
+                            {role === "listener" ? (
+                                <>
+                                    <h2>Shape your listener profile</h2>
+                                    <p className="helper-text">
+                                        Tell us what you want this account to help you find.
+                                    </p>
+                                    <div className="role-grid">
+                                        {listenerGoals.map((goal) => (
+                                            <button
+                                                key={goal}
+                                                type="button"
+                                                className={`role-option ${
+                                                    listenerDiscoveryGoal === goal
+                                                        ? "selected"
+                                                        : ""
+                                                }`}
+                                                onClick={() =>
+                                                    setListenerDiscoveryGoal(goal)
+                                                }
+                                            >
+                                                <strong>{goal}</strong>
+                                                <span>
+                                                    Use taste signals to guide discovery.
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : null}
+
+                            {role === "artist" ? (
+                                <>
+                                    <h2>Build your artist profile</h2>
+                                    <p className="helper-text">
+                                        Add the information listeners and collaborators
+                                        should see first.
+                                    </p>
+                                    <div className="form-grid two-columns">
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="artist-name"
+                                            >
+                                                Artist or project name
+                                            </label>
+                                            <input
+                                                id="artist-name"
+                                                type="text"
+                                                className="form-input"
+                                                value={artistName}
+                                                onChange={(event) =>
+                                                    setArtistName(event.target.value)
+                                                }
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="artist-location"
+                                            >
+                                                Location
+                                            </label>
+                                            <input
+                                                id="artist-location"
+                                                type="text"
+                                                className="form-input"
+                                                value={artistLocation}
+                                                onChange={(event) =>
+                                                    setArtistLocation(event.target.value)
+                                                }
+                                                placeholder="City or scene"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label
+                                            className="form-label"
+                                            htmlFor="artist-release-status"
+                                        >
+                                            Artist journey
+                                        </label>
+                                        <select
+                                            id="artist-release-status"
+                                            className="form-input"
+                                            value={artistReleaseStatus}
+                                            onChange={(event) =>
+                                                setArtistReleaseStatus(
+                                                    event.target.value
+                                                )
+                                            }
+                                        >
+                                            {releaseStatuses.map((status) => (
+                                                <option key={status} value={status}>
+                                                    {status}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label
+                                            className="form-label"
+                                            htmlFor="artist-bio"
+                                        >
+                                            Short bio
+                                        </label>
+                                        <textarea
+                                            id="artist-bio"
+                                            className="form-input textarea-input"
+                                            value={artistBio}
+                                            onChange={(event) =>
+                                                setArtistBio(event.target.value)
+                                            }
+                                            placeholder="A few words about your sound"
+                                        />
+                                    </div>
+                                </>
+                            ) : null}
+
+                            {role === "producer" ? (
+                                <>
+                                    <h2>Set up your producer profile</h2>
+                                    <p className="helper-text">
+                                        Add the services, tools, and collaboration
+                                        goals that describe your work.
+                                    </p>
+                                    <div className="form-grid two-columns">
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="producer-name"
+                                            >
+                                                Producer name
+                                            </label>
+                                            <input
+                                                id="producer-name"
+                                                type="text"
+                                                className="form-input"
+                                                value={producerName}
+                                                onChange={(event) =>
+                                                    setProducerName(event.target.value)
+                                                }
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="studio-name"
+                                            >
+                                                Studio or collective
+                                            </label>
+                                            <input
+                                                id="studio-name"
+                                                type="text"
+                                                className="form-input"
+                                                value={studioName}
+                                                onChange={(event) =>
+                                                    setStudioName(event.target.value)
+                                                }
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="choice-section">
+                                        <div className="choice-section-heading">
+                                            <label className="form-label">
+                                                Services
+                                            </label>
+                                            <span>
+                                                {selectedProducerServices.length} selected
+                                            </span>
+                                        </div>
+                                        <div className="genre-grid">
+                                            {producerServices.map((service) => (
+                                                <button
+                                                    key={service}
+                                                    type="button"
+                                                    className={`choice-chip ${
+                                                        selectedProducerServices.includes(
+                                                            service
+                                                        )
+                                                            ? "selected"
+                                                            : ""
+                                                    }`}
+                                                    onClick={() =>
+                                                        toggleProducerService(service)
+                                                    }
+                                                >
+                                                    {service}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="form-grid two-columns">
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="producer-tools"
+                                            >
+                                                Tools
+                                            </label>
+                                            <input
+                                                id="producer-tools"
+                                                type="text"
+                                                className="form-input"
+                                                value={producerTools}
+                                                onChange={(event) =>
+                                                    setProducerTools(event.target.value)
+                                                }
+                                                placeholder="Ableton, Logic, MPC"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="collaboration-goal"
+                                            >
+                                                Main goal
+                                            </label>
+                                            <select
+                                                id="collaboration-goal"
+                                                className="form-input"
+                                                value={producerCollaborationGoal}
+                                                onChange={(event) =>
+                                                    setProducerCollaborationGoal(
+                                                        event.target.value
+                                                    )
+                                                }
+                                            >
+                                                {collaborationGoals.map((goal) => (
+                                                    <option key={goal} value={goal}>
+                                                        {goal}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : null}
+                        </div>
+                    ) : null}
+
+                    {currentStep === 3 ? (
+                        <div className="signup-step">
+                            <p className="eyebrow">Step 4</p>
+                            <h2>
+                                {role === "artist"
+                                    ? "Choose your sound"
+                                    : role === "producer"
+                                      ? "Choose your production lanes"
+                                      : "Pick a few genres"}
+                            </h2>
                             <GenreSelector
                                 genres={availableGenres}
                                 selectedGenres={selectedGenres}
@@ -328,10 +696,16 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                         </div>
                     ) : null}
 
-                    {currentStep === 3 ? (
+                    {currentStep === 4 ? (
                         <div className="signup-step">
-                            <p className="eyebrow">Step 4</p>
-                            <h2>Add artists you like</h2>
+                            <p className="eyebrow">Step 5</p>
+                            <h2>
+                                {role === "artist"
+                                    ? "Add artists that inspire you"
+                                    : role === "producer"
+                                      ? "Add artists you want to work near"
+                                      : "Add artists you like"}
+                            </h2>
                             <ArtistSelector
                                 artists={availableArtists}
                                 selectedArtists={selectedArtists}
@@ -343,9 +717,9 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                         </div>
                     ) : null}
 
-                    {currentStep === 4 ? (
+                    {currentStep === 5 ? (
                         <div className="signup-step">
-                            <p className="eyebrow">Step 5</p>
+                            <p className="eyebrow">Step 6</p>
                             <h2>Review your profile</h2>
                             <div className="review-list">
                                 <div>
@@ -360,6 +734,38 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                                     <span>Account type</span>
                                     <strong>{selectedRole?.title ?? role}</strong>
                                 </div>
+                                {role === "listener" ? (
+                                    <div>
+                                        <span>Discovery goal</span>
+                                        <strong>{listenerDiscoveryGoal}</strong>
+                                    </div>
+                                ) : null}
+                                {role === "artist" ? (
+                                    <>
+                                        <div>
+                                            <span>Artist name</span>
+                                            <strong>{artistName}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Artist journey</span>
+                                            <strong>{artistReleaseStatus}</strong>
+                                        </div>
+                                    </>
+                                ) : null}
+                                {role === "producer" ? (
+                                    <>
+                                        <div>
+                                            <span>Producer name</span>
+                                            <strong>{producerName}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Services</span>
+                                            <strong>
+                                                {selectedProducerServices.join(", ")}
+                                            </strong>
+                                        </div>
+                                    </>
+                                ) : null}
                                 <div>
                                     <span>Genres</span>
                                     <strong>{selectedGenres.join(", ")}</strong>
@@ -385,7 +791,7 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                             </button>
                         ) : null}
 
-                        {currentStep < 4 ? (
+                        {currentStep < 5 ? (
                             <button
                                 type="button"
                                 className="primary-button"
