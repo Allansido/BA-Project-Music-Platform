@@ -6,8 +6,14 @@ const router = (0, express_1.Router)();
 router.get("/genres", (_req, res) => {
     res.json((0, authService_1.getAvailableGenres)());
 });
-router.get("/artists", (_req, res) => {
-    res.json((0, authService_1.getAvailableArtists)());
+router.get("/artists", async (_req, res) => {
+    try {
+        res.json(await (0, authService_1.getAvailableArtists)());
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Could not load artists.";
+        res.status(500).json({ message });
+    }
 });
 router.get("/me", async (req, res) => {
     const session = req.session;

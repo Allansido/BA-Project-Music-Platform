@@ -3,16 +3,17 @@ import readline from "readline";
 import { Interaction } from "../data/dataset_modules/lastfmLoader";
 import {
     BaselineRecommendationResult,
-    getBaselineRecommendations
+    RecommendedArtist,
+    RecommendedTracks
 } from "../data/recommendation_modules/baselineRecommender";
 import { getSafeUserById } from "./auth/authService";
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
 
-function loadInteractions(): Interaction[] {
-    return JSON.parse(
-        fs.readFileSync(INTERACTIONS_PATH, "utf8")
-    ) as Interaction[];
+interface ArtistAggregate {
+    artistId: string | null;
+    artistName: string;
+    playCount: number;
 }
 
 let cachedInteractions: Interaction[] | null = null;

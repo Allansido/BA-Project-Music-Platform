@@ -3,8 +3,7 @@
 ## Local database
 
 This project uses a local PostgreSQL database for created user accounts.
-Passwords are hashed with bcrypt before they are stored, so the database never
-stores plain-text passwords.
+Passwords are hashed with bcrypt before they are stored.
 
 1. Copy the example environment file and adjust values if needed:
 
