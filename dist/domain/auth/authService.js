@@ -25,8 +25,64 @@ function normalizeGenres(genres) {
 function normalizeFavoriteArtists(favoriteArtists) {
     return [...new Set(favoriteArtists.map((artist) => artist.trim()))].filter(Boolean);
 }
+function normalizeString(value) {
+    return value?.trim() ?? "";
+}
+function normalizeStringArray(values) {
+    return [...new Set((values ?? []).map((value) => value.trim()))].filter(Boolean);
+}
 function isValidEmail(email) {
     return /\S+@\S+\.\S+/.test(email);
+}
+function getNormalizedRoleDetails(input) {
+    const roleDetails = input.roleDetails ?? {};
+    if (input.role === "artist") {
+        const artistDetails = roleDetails.artist;
+        return {
+            artist: {
+                artistName: normalizeString(artistDetails?.artistName),
+                location: normalizeString(artistDetails?.location),
+                bio: normalizeString(artistDetails?.bio),
+                releaseStatus: normalizeString(artistDetails?.releaseStatus)
+            }
+        };
+    }
+    if (input.role === "producer") {
+        const producerDetails = roleDetails.producer;
+        return {
+            producer: {
+                producerName: normalizeString(producerDetails?.producerName),
+                studioName: normalizeString(producerDetails?.studioName),
+                services: normalizeStringArray(producerDetails?.services),
+                tools: normalizeString(producerDetails?.tools),
+                collaborationGoal: normalizeString(producerDetails?.collaborationGoal)
+            }
+        };
+    }
+    return {
+        listener: {
+            discoveryGoal: normalizeString(roleDetails.listener?.discoveryGoal)
+        }
+    };
+}
+function validateArtistDetails(artistDetails) {
+    if (!artistDetails?.artistName) {
+        throw new Error("Artist name is required.");
+    }
+    if (!artistDetails.releaseStatus) {
+        throw new Error("Please choose where you are in your artist journey.");
+    }
+}
+function validateProducerDetails(producerDetails) {
+    if (!producerDetails?.producerName) {
+        throw new Error("Producer name is required.");
+    }
+    if (producerDetails.services.length === 0) {
+        throw new Error("Please choose at least one producer service.");
+    }
+    if (!producerDetails.collaborationGoal) {
+        throw new Error("Please choose a collaboration goal.");
+    }
 }
 function toSafeUser(user) {
     return {
@@ -35,10 +91,11 @@ function toSafeUser(user) {
         email: user.email,
         role: user.role,
         genres: user.genres,
-        favoriteArtists: user.favoriteArtists
+        favoriteArtists: user.favoriteArtists,
+        roleDetails: user.roleDetails
     };
 }
-function validateSignupInput(input) {
+async function validateSignupInput(input) {
     const name = input.name?.trim();
     const email = normalizeEmail(input.email ?? "");
     const password = input.password ?? "";
@@ -63,6 +120,13 @@ function validateSignupInput(input) {
     if (!ALLOWED_ROLES.includes(role)) {
         throw new Error("Please choose a valid account type.");
     }
+    const roleDetails = getNormalizedRoleDetails(input);
+    if (role === "artist") {
+        validateArtistDetails(roleDetails.artist);
+    }
+    if (role === "producer") {
+        validateProducerDetails(roleDetails.producer);
+    }
     if (genres.length < MIN_GENRE_COUNT) {
         throw new Error(`Please choose at least ${MIN_GENRE_COUNT} genres.`);
     }
@@ -73,18 +137,19 @@ function validateSignupInput(input) {
     if (favoriteArtists.length < MIN_ARTIST_COUNT) {
         throw new Error(`Please choose at least ${MIN_ARTIST_COUNT} artists.`);
     }
-    const availableArtistNames = new Set((0, artistData_1.getOnboardingArtists)().map((artist) => artist.name));
+    const availableArtistNames = new Set((await (0, artistData_1.getOnboardingArtists)()).map((artist) => artist.name));
     const invalidArtists = favoriteArtists.filter((artist) => !availableArtistNames.has(artist));
     if (invalidArtists.length > 0) {
         throw new Error("One or more selected artists are invalid.");
     }
 }
 async function registerUser(input) {
-    validateSignupInput(input);
+    await validateSignupInput(input);
     const normalizedEmail = normalizeEmail(input.email);
     const trimmedName = input.name.trim();
     const normalizedGenres = normalizeGenres(input.genres);
     const normalizedFavoriteArtists = normalizeFavoriteArtists(input.favoriteArtists);
+    const normalizedRoleDetails = getNormalizedRoleDetails(input);
     const existingUser = await (0, userStore_1.findUserByEmail)(normalizedEmail);
     if (existingUser) {
         throw new Error("An account with that email already exists.");
@@ -97,7 +162,8 @@ async function registerUser(input) {
         passwordHash,
         role: input.role,
         genres: normalizedGenres,
-        favoriteArtists: normalizedFavoriteArtists
+        favoriteArtists: normalizedFavoriteArtists,
+        roleDetails: normalizedRoleDetails
     };
     await (0, userStore_1.createUser)(newUser);
     return toSafeUser(newUser);

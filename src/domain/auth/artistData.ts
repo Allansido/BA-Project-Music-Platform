@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import readline from "readline";
-import { splitArtistsBySegment } from "../artistSegmentation";
 import { Interaction } from "../../data/dataset_modules/lastfmLoader";
 
 export interface OnboardingArtist {
@@ -23,7 +22,15 @@ interface ArtistSegmentFile {
     }>;
 }
 
+interface MutableArtistStats {
+    id: string;
+    name: string;
+    playCount: number;
+    listeners: Set<string>;
+}
+
 const ARTIST_LIMIT = 60;
+const ESTABLISHED_ARTIST_RATIO = 0.2;
 const artistSegmentsPath = path.join(
     process.cwd(),
     "dataset",
@@ -39,7 +46,7 @@ const interactionsPath = path.join(
 const ESTABLISHED_ARTIST_RATIO = 0.2;
 
 let cachedArtists: OnboardingArtist[] | null = null;
-let cachedArtistsPromise: Promise<OnboardingArtist[]> | null = null;
+let loadingArtists: Promise<OnboardingArtist[]> | null = null;
 
 function readJsonFile<T>(filePath: string): T | null {
     if (!fs.existsSync(filePath)) {
@@ -49,8 +56,35 @@ function readJsonFile<T>(filePath: string): T | null {
     return JSON.parse(fs.readFileSync(filePath, "utf8")) as T;
 }
 
-function cleanArtistName(name: string | undefined): string {
-    return name?.trim() ?? "";
+function cleanText(value: string | undefined): string {
+    return value?.trim() ?? "";
+}
+
+function parseInteractionLine(line: string): Interaction | null {
+    let jsonLine = line.trim();
+
+    if (!jsonLine || jsonLine === "[" || jsonLine === "]") {
+        return null;
+    }
+
+    if (jsonLine.endsWith(",")) {
+        jsonLine = jsonLine.slice(0, -1);
+    }
+
+    return JSON.parse(jsonLine) as Interaction;
+}
+
+function toArtistStats(
+    stats: MutableArtistStats,
+    segment: "emerging" | "established"
+): OnboardingArtist {
+    return {
+        id: stats.id,
+        name: stats.name,
+        playCount: stats.playCount,
+        listenerCount: stats.listeners.size,
+        segment
+    };
 }
 
 function uniqueArtists(artists: OnboardingArtist[]): OnboardingArtist[] {
@@ -88,8 +122,8 @@ function readArtistsFromSegments(): OnboardingArtist[] {
 
     return uniqueArtists(
         segmentData.allArtists.map((artist) => ({
-            id: artist.artistId || artist.artistKey || cleanArtistName(artist.artistName),
-            name: cleanArtistName(artist.artistName),
+            id: artist.artistId || artist.artistKey || cleanText(artist.artistName),
+            name: cleanText(artist.artistName),
             playCount: artist.playCount ?? 0,
             listenerCount: artist.listenerCount ?? 0,
             segment: artist.segment ?? "emerging"
@@ -99,149 +133,66 @@ function readArtistsFromSegments(): OnboardingArtist[] {
         .slice(0, ARTIST_LIMIT);
 }
 
-function readArtistsFromInteractions(): OnboardingArtist[] {
-    const interactions = readJsonFile<Interaction[]>(interactionsPath);
-
-    if (!interactions) {
-        return [];
-    }
-
-    return splitArtistsBySegment(interactions)
-        .allArtists.map((artist): OnboardingArtist => ({
-            id: artist.artistId || artist.artistKey,
-            name: cleanArtistName(artist.artistName),
-            playCount: artist.playCount,
-            listenerCount: artist.listenerCount,
-            segment: artist.segment
-        }))
-        .filter((artist) => artist.name)
-        .sort(byPopularity)
-        .slice(0, ARTIST_LIMIT);
-}
-
-type MutableArtistStats = {
-    artistKey: string;
-    artistId: string | null;
-    artistName: string;
-    playCount: number;
-    listeners: Set<string>;
-};
-
-function normalizeText(value: string | undefined): string {
-    return value?.trim() ?? "";
-}
-
-function getArtistKey(interaction: Interaction): string | null {
-    const artistId = normalizeText(interaction.artistId);
-
-    if (artistId) {
-        return artistId;
-    }
-
-    const artistName = normalizeText(interaction.artistName);
-
-    if (!artistName) {
-        return null;
-    }
-
-    return artistName.toLowerCase();
-}
-
-function parseInteractionLine(line: string): Interaction | null {
-    const trimmedLine = line.trim();
-
-    if (!trimmedLine || trimmedLine === "[" || trimmedLine === "]") {
-        return null;
-    }
-
-    const normalizedLine = trimmedLine.endsWith(",")
-        ? trimmedLine.slice(0, -1)
-        : trimmedLine;
-
-    return JSON.parse(normalizedLine) as Interaction;
-}
-
-async function readArtistsFromInteractionStream(): Promise<OnboardingArtist[]> {
+async function readArtistsFromInteractions(): Promise<OnboardingArtist[]> {
     if (!fs.existsSync(interactionsPath)) {
         return [];
     }
 
     const artistsByKey = new Map<string, MutableArtistStats>();
-    const stream = fs.createReadStream(interactionsPath, { encoding: "utf8" });
-    const lineReader = readline.createInterface({
-        input: stream,
+    const lines = readline.createInterface({
+        input: fs.createReadStream(interactionsPath, { encoding: "utf8" }),
         crlfDelay: Infinity
     });
 
-    try {
-        for await (const line of lineReader) {
-            const interaction = parseInteractionLine(line);
+    for await (const line of lines) {
+        const interaction = parseInteractionLine(line);
 
-            if (!interaction) {
-                continue;
-            }
-
-            const artistKey = getArtistKey(interaction);
-
-            if (!artistKey) {
-                continue;
-            }
-
-            const artistName = cleanArtistName(interaction.artistName);
-
-            if (!artistName) {
-                continue;
-            }
-
-            const existingArtist =
-                artistsByKey.get(artistKey) ??
-                {
-                    artistKey,
-                    artistId: normalizeText(interaction.artistId) || null,
-                    artistName,
-                    playCount: 0,
-                    listeners: new Set<string>()
-                };
-
-            existingArtist.playCount += 1;
-            existingArtist.listeners.add(interaction.userId);
-
-            if (!existingArtist.artistName) {
-                existingArtist.artistName = artistName;
-            }
-
-            if (!existingArtist.artistId) {
-                existingArtist.artistId = normalizeText(interaction.artistId) || null;
-            }
-
-            artistsByKey.set(artistKey, existingArtist);
+        if (!interaction) {
+            continue;
         }
-    } finally {
-        lineReader.close();
+
+        const artistId = cleanText(interaction.artistId);
+        const artistName = cleanText(interaction.artistName);
+        const artistKey = artistId || artistName.toLowerCase();
+
+        if (!artistKey || !artistName) {
+            continue;
+        }
+
+        const stats =
+            artistsByKey.get(artistKey) ??
+            {
+                id: artistId || artistKey,
+                name: artistName,
+                playCount: 0,
+                listeners: new Set<string>()
+            };
+
+        stats.playCount += 1;
+        stats.listeners.add(interaction.userId);
+        artistsByKey.set(artistKey, stats);
     }
 
-    const allArtists = [...artistsByKey.values()]
-        .map((artist) => ({
-            id: artist.artistId || artist.artistKey,
-            name: cleanArtistName(artist.artistName),
-            playCount: artist.playCount,
-            listenerCount: artist.listeners.size,
-            segment: "emerging" as const
-        }))
-        .filter((artist) => artist.name)
+    const unsegmentedArtists = [...artistsByKey.values()]
+        .map((stats) => toArtistStats(stats, "emerging"))
         .sort(byPopularity);
-
     const establishedArtistCount = Math.ceil(
-        allArtists.length * ESTABLISHED_ARTIST_RATIO
+        unsegmentedArtists.length * ESTABLISHED_ARTIST_RATIO
+    );
+    const establishedArtistKeys = new Set(
+        unsegmentedArtists
+            .slice(0, establishedArtistCount)
+            .map((artist) => artist.id)
     );
 
-    return allArtists
-        .map((artist, index): OnboardingArtist => ({
+    return uniqueArtists(
+        unsegmentedArtists.map((artist) => ({
             ...artist,
-            segment:
-                index < establishedArtistCount ? "established" : "emerging"
+            segment: establishedArtistKeys.has(artist.id)
+                ? "established"
+                : "emerging"
         }))
-        .slice(0, ARTIST_LIMIT);
+    ).slice(0, ARTIST_LIMIT);
 }
 
 export async function getOnboardingArtists(): Promise<OnboardingArtist[]> {
@@ -249,21 +200,16 @@ export async function getOnboardingArtists(): Promise<OnboardingArtist[]> {
         return cachedArtists;
     }
 
-    cachedArtists = readArtistsFromSegments();
+    loadingArtists ??= (async () => {
+        const segmentedArtists = readArtistsFromSegments();
 
-    if (cachedArtists.length === 0) {
-        cachedArtistsPromise ??= readArtistsFromInteractionStream()
-            .catch(() => readArtistsFromInteractions())
-            .then((artists) => {
-                cachedArtists = artists;
-                return artists;
-            })
-            .finally(() => {
-                cachedArtistsPromise = null;
-            });
+        cachedArtists =
+            segmentedArtists.length > 0
+                ? segmentedArtists
+                : await readArtistsFromInteractions();
 
-        cachedArtists = await cachedArtistsPromise;
-    }
+        return cachedArtists;
+    })();
 
-    return cachedArtists;
+    return loadingArtists;
 }

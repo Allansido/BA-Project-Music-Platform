@@ -1,6 +1,6 @@
 import { QueryResult } from "pg";
 import { pool } from "../../infrastructure/database";
-import { User, UserRole } from "./types";
+import { RoleDetails, User, UserRole } from "./types";
 
 interface UserRow {
     id: string;
@@ -10,6 +10,7 @@ interface UserRow {
     role: string;
     genres: string[] | string;
     favorite_artists: string[] | string;
+    role_details: RoleDetails | string;
 }
 
 let initPromise: Promise<void> | null = null;
@@ -24,12 +25,16 @@ export function initUserStore(): Promise<void> {
             role TEXT NOT NULL CHECK (role IN ('artist', 'producer', 'listener')),
             genres JSONB NOT NULL DEFAULT '[]'::jsonb,
             favorite_artists JSONB NOT NULL DEFAULT '[]'::jsonb,
+            role_details JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
 
         ALTER TABLE users
             ADD COLUMN IF NOT EXISTS favorite_artists JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+        ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS role_details JSONB NOT NULL DEFAULT '{}'::jsonb;
 
         CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_idx
             ON users (LOWER(email));
@@ -66,6 +71,17 @@ function parseStringArray(value: string[] | string): string[] {
     );
 }
 
+function parseRoleDetails(value: RoleDetails | string): RoleDetails {
+    const parsedValue: unknown =
+        typeof value === "string" ? JSON.parse(value) : value;
+
+    if (!parsedValue || typeof parsedValue !== "object" || Array.isArray(parsedValue)) {
+        return {};
+    }
+
+    return parsedValue as RoleDetails;
+}
+
 function toUser(row: UserRow): User {
     return {
         id: row.id,
@@ -74,7 +90,8 @@ function toUser(row: UserRow): User {
         passwordHash: row.password_hash,
         role: row.role as UserRole,
         genres: parseStringArray(row.genres),
-        favoriteArtists: parseStringArray(row.favorite_artists)
+        favoriteArtists: parseStringArray(row.favorite_artists),
+        roleDetails: parseRoleDetails(row.role_details)
     };
 }
 
@@ -90,7 +107,7 @@ export async function findUserByEmail(
 
     const result = await pool.query<UserRow>(
         `
-            SELECT id, name, email, password_hash, role, genres, favorite_artists
+            SELECT id, name, email, password_hash, role, genres, favorite_artists, role_details
             FROM users
             WHERE LOWER(email) = LOWER($1)
             LIMIT 1
@@ -106,7 +123,7 @@ export async function findUserById(id: string): Promise<User | undefined> {
 
     const result = await pool.query<UserRow>(
         `
-            SELECT id, name, email, password_hash, role, genres, favorite_artists
+            SELECT id, name, email, password_hash, role, genres, favorite_artists, role_details
             FROM users
             WHERE id = $1
             LIMIT 1
@@ -129,9 +146,10 @@ export async function createUser(user: User): Promise<User> {
                 password_hash,
                 role,
                 genres,
-                favorite_artists
+                favorite_artists,
+                role_details
             )
-            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb)
         `,
         [
             user.id,
@@ -140,7 +158,8 @@ export async function createUser(user: User): Promise<User> {
             user.passwordHash,
             user.role,
             JSON.stringify(user.genres),
-            JSON.stringify(user.favoriteArtists)
+            JSON.stringify(user.favoriteArtists),
+            JSON.stringify(user.roleDetails)
         ]
     );
 
@@ -151,7 +170,7 @@ export async function getAllUsers(): Promise<User[]> {
     await initUserStore();
 
     const result = await pool.query<UserRow>(`
-        SELECT id, name, email, password_hash, role, genres, favorite_artists
+        SELECT id, name, email, password_hash, role, genres, favorite_artists, role_details
         FROM users
         ORDER BY created_at ASC
     `);
