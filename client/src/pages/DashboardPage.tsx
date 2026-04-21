@@ -56,6 +56,10 @@ function getRoleSummary(user: SafeUser): string {
     return user.roleDetails.listener?.discoveryGoal || "Listener profile";
 }
 
+function formatScore(score: number): number {
+    return Math.ceil(score);
+}
+
 function DashboardPage({ user, onLogout }: DashboardPageProps) {
     const navigate = useNavigate();
     const [recommendations, setRecommendations] =
@@ -206,7 +210,7 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                                 </span>
                                 <h3>{track.trackName}</h3>
                                 <p>{track.artistName}</p>
-                                <small>Score {track.score}</small>
+                                <small>Score {formatScore(track.score)}</small>
                             </article>
                         ))}
                     </div>

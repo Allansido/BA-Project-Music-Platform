@@ -6,141 +6,63 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getRecommendationsForUser = getRecommendationsForUser;
 const fs_1 = __importDefault(require("fs"));
 const readline_1 = __importDefault(require("readline"));
+const baselineRecommender_1 = require("../data/recommendation_modules/baselineRecommender");
+const authService_1 = require("./auth/authService");
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
-function normalizeText(value) {
-    return value?.trim() ?? "";
-}
-function getArtistKey(interaction) {
-    return (normalizeText(interaction.artistId) ||
-        normalizeText(interaction.artistName).toLowerCase());
-}
-function getTrackKey(interaction) {
-    return (normalizeText(interaction.trackId) ||
-        `${normalizeText(interaction.artistName)}::${normalizeText(interaction.trackName)}`);
-}
+let cachedInteractions = null;
+let cachedInteractionsPromise = null;
 function parseInteractionLine(line) {
-    let jsonLine = line.trim();
-    if (!jsonLine || jsonLine === "[" || jsonLine === "]") {
+    const trimmedLine = line.trim();
+    if (!trimmedLine || trimmedLine === "[" || trimmedLine === "]") {
         return null;
     }
-    if (jsonLine.endsWith(",")) {
-        jsonLine = jsonLine.slice(0, -1);
-    }
-    return JSON.parse(jsonLine);
+    const normalizedLine = trimmedLine.endsWith(",")
+        ? trimmedLine.slice(0, -1)
+        : trimmedLine;
+    return JSON.parse(normalizedLine);
 }
-function updateHeardSets(aggregates, interaction, userId) {
-    if (interaction.userId !== userId) {
-        return;
+async function loadInteractionsFromStream() {
+    if (!fs_1.default.existsSync(INTERACTIONS_PATH)) {
+        return [];
     }
-    const artistKey = getArtistKey(interaction);
-    const trackKey = getTrackKey(interaction);
-    if (artistKey) {
-        aggregates.heardArtists.add(artistKey);
-    }
-    if (trackKey.trim() !== "::") {
-        aggregates.heardTracks.add(trackKey);
-    }
-}
-function updateArtistAggregates(aggregates, interaction) {
-    const artistId = normalizeText(interaction.artistId) || null;
-    const artistName = normalizeText(interaction.artistName);
-    const artistKey = artistId || artistName.toLowerCase();
-    if (!artistKey || !artistName) {
-        return;
-    }
-    const current = aggregates.artists.get(artistKey) ??
-        {
-            artistId,
-            artistName,
-            playCount: 0
-        };
-    current.playCount += 1;
-    aggregates.artists.set(artistKey, current);
-}
-function updateTrackAggregates(aggregates, interaction) {
-    const trackId = normalizeText(interaction.trackId) || null;
-    const trackName = normalizeText(interaction.trackName);
-    const artistId = normalizeText(interaction.artistId) || null;
-    const artistName = normalizeText(interaction.artistName);
-    const trackKey = trackId || `${artistName}::${trackName}`;
-    if (!trackKey || !trackName || !artistName) {
-        return;
-    }
-    const current = aggregates.tracks.get(trackKey) ??
-        {
-            trackId,
-            trackName,
-            artistId,
-            artistName,
-            playCount: 0
-        };
-    current.playCount += 1;
-    aggregates.tracks.set(trackKey, current);
-}
-async function aggregateInteractions(userId) {
-    const aggregates = {
-        heardArtists: new Set(),
-        heardTracks: new Set(),
-        artists: new Map(),
-        tracks: new Map()
-    };
-    const lines = readline_1.default.createInterface({
-        input: fs_1.default.createReadStream(INTERACTIONS_PATH, { encoding: "utf8" }),
+    const interactions = [];
+    const stream = fs_1.default.createReadStream(INTERACTIONS_PATH, { encoding: "utf8" });
+    const lineReader = readline_1.default.createInterface({
+        input: stream,
         crlfDelay: Infinity
     });
-    for await (const line of lines) {
+    for await (const line of lineReader) {
         const interaction = parseInteractionLine(line);
-        if (!interaction) {
-            continue;
+        if (interaction) {
+            interactions.push(interaction);
         }
-        updateHeardSets(aggregates, interaction, userId);
-        updateArtistAggregates(aggregates, interaction);
-        updateTrackAggregates(aggregates, interaction);
     }
-    return aggregates;
+    return interactions;
 }
-function compareByPlayCount(firstItem, secondItem) {
-    return secondItem.playCount - firstItem.playCount;
-}
-function buildRecommendedArtists(aggregates, limit) {
-    return [...aggregates.artists.values()]
-        .sort(compareByPlayCount)
-        .filter((artist) => {
-        const artistKey = artist.artistId || artist.artistName.toLowerCase();
-        return !aggregates.heardArtists.has(artistKey);
-    })
-        .slice(0, limit)
-        .map((artist) => ({
-        artistId: artist.artistId,
-        artistName: artist.artistName,
-        score: artist.playCount,
-        reason: "Popular among listeners on the platform"
-    }));
-}
-function buildRecommendedTracks(aggregates, limit) {
-    return [...aggregates.tracks.values()]
-        .sort(compareByPlayCount)
-        .filter((track) => {
-        const trackKey = track.trackId || `${track.artistName}::${track.trackName}`;
-        if (track.trackId == null || track.artistId == null) {
-            return false;
-        }
-        return !aggregates.heardTracks.has(trackKey);
-    })
-        .slice(0, limit)
-        .map((track) => ({
-        trackId: track.trackId,
-        trackName: track.trackName,
-        artistId: track.artistId,
-        artistName: track.artistName,
-        score: track.playCount,
-        reason: "Popular among listeners on the platform"
-    }));
+async function loadInteractions() {
+    if (!fs_1.default.existsSync(INTERACTIONS_PATH)) {
+        return [];
+    }
+    const rawInteractions = await fs_1.default.promises.readFile(INTERACTIONS_PATH, "utf8");
+    const parsedInteractions = JSON.parse(rawInteractions);
+    return Array.isArray(parsedInteractions)
+        ? parsedInteractions
+        : [];
 }
 async function getRecommendationsForUser(userId, limit = 10) {
-    const aggregates = await aggregateInteractions(userId);
-    return {
-        artists: buildRecommendedArtists(aggregates, limit),
-        tracks: buildRecommendedTracks(aggregates, limit)
-    };
+    const user = await (0, authService_1.getSafeUserById)(userId);
+    if (!user) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+    cachedInteractionsPromise ?? (cachedInteractionsPromise = loadInteractionsFromStream()
+        .catch(() => loadInteractions())
+        .then((interactions) => {
+        cachedInteractions = interactions;
+        return interactions;
+    })
+        .finally(() => {
+        cachedInteractionsPromise = null;
+    }));
+    const interactions = cachedInteractions ?? (await cachedInteractionsPromise);
+    return (0, baselineRecommender_1.getBaselineRecommendations)(interactions, user, limit);
 }

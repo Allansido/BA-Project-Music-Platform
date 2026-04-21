@@ -3,18 +3,11 @@ import readline from "readline";
 import { Interaction } from "../data/dataset_modules/lastfmLoader";
 import {
     BaselineRecommendationResult,
-    RecommendedArtist,
-    RecommendedTracks
+    getBaselineRecommendations
 } from "../data/recommendation_modules/baselineRecommender";
 import { getSafeUserById } from "./auth/authService";
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
-
-interface ArtistAggregate {
-    artistId: string | null;
-    artistName: string;
-    playCount: number;
-}
 
 let cachedInteractions: Interaction[] | null = null;
 let cachedInteractionsPromise: Promise<Interaction[]> | null = null;
@@ -54,6 +47,19 @@ async function loadInteractionsFromStream(): Promise<Interaction[]> {
     }
 
     return interactions;
+}
+
+async function loadInteractions(): Promise<Interaction[]> {
+    if (!fs.existsSync(INTERACTIONS_PATH)) {
+        return [];
+    }
+
+    const rawInteractions = await fs.promises.readFile(INTERACTIONS_PATH, "utf8");
+    const parsedInteractions = JSON.parse(rawInteractions);
+
+    return Array.isArray(parsedInteractions)
+        ? (parsedInteractions as Interaction[])
+        : [];
 }
 
 export async function getRecommendationsForUser(

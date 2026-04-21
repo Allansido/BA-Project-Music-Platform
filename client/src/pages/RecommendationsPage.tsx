@@ -12,6 +12,10 @@ function getScorePercent(score: number, maxScore: number): string {
     return `${Math.max(8, Math.round((score / maxScore) * 100))}%`;
 }
 
+function formatScore(score: number): number {
+    return Math.ceil(score);
+}
+
 function RecommendationsPage() {
     const [recommendations, setRecommendations] =
         useState<RecommendationResult | null>(null);
@@ -117,7 +121,7 @@ function RecommendationsPage() {
                             </div>
                             <div className="score-badge">
                                 <span>Score</span>
-                                <strong>{topArtist.score}</strong>
+                                <strong>{formatScore(topArtist.score)}</strong>
                             </div>
                         </section>
                     ) : null}
@@ -141,14 +145,14 @@ function RecommendationsPage() {
                                             {String(index + 1).padStart(2, "0")}
                                         </span>
                                         <span className="score-label">
-                                            Score {artist.score}
+                                            Score {formatScore(artist.score)}
                                         </span>
                                     </div>
                                     <h3>{artist.artistName}</h3>
                                     <p>{artist.reason}</p>
                                     <div
                                         className="score-bar"
-                                        aria-label={`Score ${artist.score}`}
+                                        aria-label={`Score ${formatScore(artist.score)}`}
                                     >
                                         <span
                                             style={{
@@ -189,7 +193,7 @@ function RecommendationsPage() {
                                         <span>{track.reason}</span>
                                         <div
                                             className="score-bar"
-                                            aria-label={`Score ${track.score}`}
+                                            aria-label={`Score ${formatScore(track.score)}`}
                                         >
                                             <span
                                                 style={{
@@ -201,7 +205,7 @@ function RecommendationsPage() {
                                             />
                                         </div>
                                     </div>
-                                    <strong>{track.score}</strong>
+                                    <strong>{formatScore(track.score)}</strong>
                                 </article>
                             ))}
                         </div>

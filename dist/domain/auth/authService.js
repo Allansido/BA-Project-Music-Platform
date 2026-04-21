@@ -194,6 +194,6 @@ async function getSafeUserById(userId) {
 function getAvailableGenres() {
     return genreData_1.AVAILABLE_GENRES;
 }
-function getAvailableArtists() {
+async function getAvailableArtists() {
     return (0, artistData_1.getOnboardingArtists)();
 }
