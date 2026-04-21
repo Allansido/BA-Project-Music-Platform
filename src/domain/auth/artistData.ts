@@ -43,7 +43,6 @@ const interactionsPath = path.join(
     "processed",
     "interactions.json"
 );
-const ESTABLISHED_ARTIST_RATIO = 0.2;
 
 let cachedArtists: OnboardingArtist[] | null = null;
 let loadingArtists: Promise<OnboardingArtist[]> | null = null;
