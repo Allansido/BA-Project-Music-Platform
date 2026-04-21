@@ -24,13 +24,12 @@ function logDatabaseStartupError(error: unknown): void {
     }
 }
 
-initUserStore()
-    .then(() => {
-        app.listen(port, () => {
-            console.log(`Server is running on port ${port}`);
-        });
-    })
-    .catch((error) => {
-        logDatabaseStartupError(error);
-        process.exit(1);
-    });
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+});
+
+// Let the API start even if the database is temporarily unavailable so
+// static signup data, health checks, and non-database routes can still work.
+initUserStore().catch((error) => {
+    logDatabaseStartupError(error);
+});

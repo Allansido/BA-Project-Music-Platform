@@ -44,7 +44,7 @@ function toSafeUser(user: User): SafeUser {
     };
 }
 
-function validateSignupInput(input: SignupInput): void {
+async function validateSignupInput(input: SignupInput): Promise<void> {
     const name = input.name?.trim();
     const email = normalizeEmail(input.email ?? "");
     const password = input.password ?? "";
@@ -95,7 +95,7 @@ function validateSignupInput(input: SignupInput): void {
     }
 
     const availableArtistNames = new Set(
-        getOnboardingArtists().map((artist) => artist.name)
+        (await getOnboardingArtists()).map((artist) => artist.name)
     );
     const invalidArtists = favoriteArtists.filter(
         (artist) => !availableArtistNames.has(artist)
@@ -107,7 +107,7 @@ function validateSignupInput(input: SignupInput): void {
 }
 
 export async function registerUser(input: SignupInput): Promise<SafeUser> {
-    validateSignupInput(input);
+    await validateSignupInput(input);
 
     const normalizedEmail = normalizeEmail(input.email);
     const trimmedName = input.name.trim();
@@ -174,6 +174,6 @@ export function getAvailableGenres(): string[] {
     return AVAILABLE_GENRES;
 }
 
-export function getAvailableArtists(): OnboardingArtist[] {
+export async function getAvailableArtists(): Promise<OnboardingArtist[]> {
     return getOnboardingArtists();
 }
