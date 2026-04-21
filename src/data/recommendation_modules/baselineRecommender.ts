@@ -1,4 +1,5 @@
 import { Interaction } from "../dataset_modules/lastfmLoader";
+import { SafeUser } from "../../domain/auth/types";
 
 export interface RecommendedArtist {
     artistId: string | null;
@@ -21,7 +22,6 @@ export interface BaselineRecommendationResult {
     tracks: RecommendedTracks[];
 }
 
-
 interface ArtistAggregate {
     artistId: string | null;
     artistName: string;
@@ -36,51 +36,37 @@ interface TrackAggregate {
     playCount: number;
 }
 
+interface NeighborProfile {
+    similarity: number;
+    artistPreferenceKeys: Set<string>;
+    artistsByPreferenceKey: Map<
+        string,
+        { artistId: string | null; artistName: string; playCount: number }
+    >;
+    trackPlayCounts: Map<string, TrackAggregate>;
+}
 
 function normalizeText(value: string | undefined): string {
     return value?.trim() ?? "";
 }
 
-function getUserHeardArtists(
-    interactions: Interaction[],
-    userId: string
-): Set<string> {
-    const heardArtists = new Set<string>();
-
-    for (const interaction of interactions) {
-        if (interaction.userId !== userId) continue;
-
-        const artistKey =
-            normalizeText(interaction.artistId) ||
-            normalizeText(interaction.artistName).toLocaleLowerCase();
-
-        if (artistKey) {
-            heardArtists.add(artistKey);
-        }
-    }
-
-    return heardArtists;
+function getArtistKey(artistId: string | undefined, artistName: string | undefined): string {
+    return normalizeText(artistId) || normalizeText(artistName).toLowerCase();
 }
 
-function getUserHeardTracks(
-    interactions: Interaction[],
-    userId: string
-): Set<string> {
-    const heardTracks = new Set<string>();
+function getArtistPreferenceKey(artistName: string | undefined): string {
+    return normalizeText(artistName).toLowerCase();
+}
 
-    for (const interaction of interactions) {
-        if (interaction.userId !== userId) continue;
-
-        const trackKey =
-            normalizeText(interaction.trackId) ||
-            `${normalizeText(interaction.artistName)}::${normalizeText(interaction.trackName)}`;
-
-        if (trackKey.trim() !== "::") {
-            heardTracks.add(trackKey);
-        }
-    }
-
-    return heardTracks;
+function getTrackKey(
+    trackId: string | undefined,
+    artistName: string | undefined,
+    trackName: string | undefined
+): string {
+    return (
+        normalizeText(trackId) ||
+        `${normalizeText(artistName)}::${normalizeText(trackName)}`
+    );
 }
 
 function aggregateArtists(interactions: Interaction[]): ArtistAggregate[] {
@@ -89,7 +75,7 @@ function aggregateArtists(interactions: Interaction[]): ArtistAggregate[] {
     for (const interaction of interactions) {
         const artistId = normalizeText(interaction.artistId) || null;
         const artistName = normalizeText(interaction.artistName);
-        const artistKey = artistId || artistName.toLowerCase();
+        const artistKey = getArtistPreferenceKey(artistName);
 
         if (!artistKey || !artistName) continue;
 
@@ -136,18 +122,220 @@ function aggregateTracks(interactions: Interaction[]): TrackAggregate[] {
     return [...tracks.values()].sort((a, b) => b.playCount - a.playCount);
 }
 
-export function getBaselineRecommendations(
+function getUserProfileArtistKeys(user: SafeUser): Set<string> {
+    return new Set(
+        user.favoriteArtists
+            .map((artistName) => getArtistPreferenceKey(artistName))
+            .filter(Boolean)
+    );
+}
+
+function buildNeighborProfiles(interactions: Interaction[]): Map<string, NeighborProfile> {
+    const profiles = new Map<string, NeighborProfile>();
+
+    for (const interaction of interactions) {
+        const artistName = normalizeText(interaction.artistName);
+        const trackName = normalizeText(interaction.trackName);
+        const artistId = normalizeText(interaction.artistId) || null;
+        const trackId = normalizeText(interaction.trackId) || null;
+        const artistKey = getArtistKey(interaction.artistId, interaction.artistName);
+        const artistPreferenceKey = getArtistPreferenceKey(interaction.artistName);
+        const trackKey = getTrackKey(interaction.trackId, interaction.artistName, interaction.trackName);
+
+        if (!artistKey || !artistPreferenceKey || !artistName || !trackKey || !trackName) {
+            continue;
+        }
+
+        const profile =
+            profiles.get(interaction.userId) ??
+            {
+                similarity: 0,
+                artistPreferenceKeys: new Set<string>(),
+                artistsByPreferenceKey: new Map(),
+                trackPlayCounts: new Map<string, TrackAggregate>()
+            };
+
+        profile.artistPreferenceKeys.add(artistPreferenceKey);
+        const currentArtist =
+            profile.artistsByPreferenceKey.get(artistPreferenceKey) ??
+            {
+                artistId,
+                artistName,
+                playCount: 0
+            };
+        currentArtist.playCount += 1;
+        if (!currentArtist.artistId) {
+            currentArtist.artistId = artistId;
+        }
+        profile.artistsByPreferenceKey.set(artistPreferenceKey, currentArtist);
+
+        const currentTrack =
+            profile.trackPlayCounts.get(trackKey) ??
+            {
+                trackId,
+                trackName,
+                artistId,
+                artistName,
+                playCount: 0
+            };
+
+        currentTrack.playCount += 1;
+        profile.trackPlayCounts.set(trackKey, currentTrack);
+        profiles.set(interaction.userId, profile);
+    }
+
+    return profiles;
+}
+
+function scoreNeighbors(
+    neighborProfiles: Map<string, NeighborProfile>,
+    targetArtistKeys: Set<string>
+): NeighborProfile[] {
+    const targetSize = targetArtistKeys.size;
+
+    if (targetSize === 0) {
+        return [];
+    }
+
+    return [...neighborProfiles.values()]
+        .map((profile) => {
+            let overlapCount = 0;
+
+            for (const artistKey of targetArtistKeys) {
+                if (profile.artistPreferenceKeys.has(artistKey)) {
+                    overlapCount += 1;
+                }
+            }
+
+            if (overlapCount === 0) {
+                return null;
+            }
+
+            const similarity =
+                overlapCount /
+                Math.sqrt(targetSize * profile.artistPreferenceKeys.size);
+
+            return {
+                ...profile,
+                similarity
+            };
+        })
+        .filter((profile): profile is NeighborProfile => profile !== null)
+        .sort((firstProfile, secondProfile) => secondProfile.similarity - firstProfile.similarity);
+}
+
+function getPreferenceBasedRecommendations(
     interactions: Interaction[],
-    userId: string,
+    user: SafeUser,
     limit = 10
 ): BaselineRecommendationResult {
-    const heardArtists = getUserHeardArtists(interactions, userId);
-    const heardTracks = getUserHeardTracks(interactions, userId);
+    const targetArtistKeys = getUserProfileArtistKeys(user);
 
+    if (targetArtistKeys.size === 0) {
+        return getPopularityFallbackRecommendations(interactions, limit);
+    }
+
+    const neighborProfiles = scoreNeighbors(
+        buildNeighborProfiles(interactions),
+        targetArtistKeys
+    );
+
+    if (neighborProfiles.length === 0) {
+        return getPopularityFallbackRecommendations(interactions, limit, targetArtistKeys);
+    }
+
+    const artistScores = new Map<
+        string,
+        { artistId: string | null; artistName: string; score: number; supportingNeighbors: number }
+    >();
+    const trackScores = new Map<
+        string,
+        { trackId: string | null; trackName: string; artistId: string | null; artistName: string; score: number; supportingNeighbors: number }
+    >();
+
+    for (const neighbor of neighborProfiles) {
+        for (const [artistPreferenceKey, artist] of neighbor.artistsByPreferenceKey) {
+            if (targetArtistKeys.has(artistPreferenceKey)) {
+                continue;
+            }
+
+            const currentArtist =
+                artistScores.get(artistPreferenceKey) ??
+                {
+                    artistId: artist.artistId,
+                    artistName: artist.artistName,
+                    score: 0,
+                    supportingNeighbors: 0
+                };
+
+            currentArtist.score += neighbor.similarity * artist.playCount;
+            currentArtist.supportingNeighbors += 1;
+            artistScores.set(artistPreferenceKey, currentArtist);
+        }
+
+        for (const [trackKey, track] of neighbor.trackPlayCounts) {
+            const artistKey = getArtistPreferenceKey(track.artistName);
+
+            if (!artistKey || targetArtistKeys.has(artistKey)) {
+                continue;
+            }
+
+            const currentTrack =
+                trackScores.get(trackKey) ??
+                {
+                    trackId: track.trackId,
+                    trackName: track.trackName,
+                    artistId: track.artistId,
+                    artistName: track.artistName,
+                    score: 0,
+                    supportingNeighbors: 0
+                };
+
+            currentTrack.score += neighbor.similarity * track.playCount;
+            currentTrack.supportingNeighbors += 1;
+            trackScores.set(trackKey, currentTrack);
+        }
+    }
+
+    const artists = [...artistScores.values()]
+        .sort((firstArtist, secondArtist) => secondArtist.score - firstArtist.score)
+        .slice(0, limit)
+        .map((artist) => ({
+            artistId: artist.artistId,
+            artistName: artist.artistName,
+            score: Number(artist.score.toFixed(2)),
+            reason: `Heard by ${artist.supportingNeighbors} similar listeners`
+        }));
+
+    const tracks = [...trackScores.values()]
+        .filter((track) => track.trackId != null || track.artistId != null)
+        .sort((firstTrack, secondTrack) => secondTrack.score - firstTrack.score)
+        .slice(0, limit)
+        .map((track) => ({
+            trackId: track.trackId,
+            trackName: track.trackName,
+            artistId: track.artistId,
+            artistName: track.artistName,
+            score: Number(track.score.toFixed(2)),
+            reason: `Played by ${track.supportingNeighbors} similar listeners`
+        }));
+
+    if (artists.length === 0 && tracks.length === 0) {
+        return getPopularityFallbackRecommendations(interactions, limit, targetArtistKeys);
+    }
+
+    return { artists, tracks };
+}
+
+function getPopularityFallbackRecommendations(
+    interactions: Interaction[],
+    limit = 10,
+    excludedArtistKeys: Set<string> = new Set<string>()
+): BaselineRecommendationResult {
     const artists = aggregateArtists(interactions)
         .filter((artist) => {
-            const artistKey = artist.artistId || artist.artistName.toLowerCase();
-            return !heardArtists.has(artistKey);
+            const artistKey = getArtistPreferenceKey(artist.artistName);
+            return !excludedArtistKeys.has(artistKey);
         })
         .slice(0, limit)
         .map((artist) => ({
@@ -159,9 +347,8 @@ export function getBaselineRecommendations(
 
     const tracks = aggregateTracks(interactions)
         .filter((track) => {
-            const trackKey = track.trackId || `${track.artistName}::${track.trackName}`;
-            if (track.trackId == null || track.artistId == null) return false;
-            return !heardTracks.has(trackKey);
+            const artistKey = getArtistPreferenceKey(track.artistName);
+            return Boolean(artistKey) && !excludedArtistKeys.has(artistKey);
         })
         .slice(0, limit)
         .map((track) => ({
@@ -174,5 +361,12 @@ export function getBaselineRecommendations(
         }));
 
     return { artists, tracks };
+}
 
+export function getBaselineRecommendations(
+    interactions: Interaction[],
+    user: SafeUser,
+    limit = 10
+): BaselineRecommendationResult {
+    return getPreferenceBasedRecommendations(interactions, user, limit);
 }

@@ -6,6 +6,7 @@ import {
     RecommendedArtist,
     RecommendedTracks
 } from "../data/recommendation_modules/baselineRecommender";
+import { getSafeUserById } from "./auth/authService";
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
 
@@ -15,217 +16,66 @@ interface ArtistAggregate {
     playCount: number;
 }
 
-interface TrackAggregate {
-    trackId: string | null;
-    trackName: string;
-    artistId: string | null;
-    artistName: string;
-    playCount: number;
-}
-
-interface RecommendationAggregates {
-    heardArtists: Set<string>;
-    heardTracks: Set<string>;
-    artists: Map<string, ArtistAggregate>;
-    tracks: Map<string, TrackAggregate>;
-}
-
-function normalizeText(value: string | undefined): string {
-    return value?.trim() ?? "";
-}
-
-function getArtistKey(interaction: Interaction): string {
-    return (
-        normalizeText(interaction.artistId) ||
-        normalizeText(interaction.artistName).toLowerCase()
-    );
-}
-
-function getTrackKey(interaction: Interaction): string {
-    return (
-        normalizeText(interaction.trackId) ||
-        `${normalizeText(interaction.artistName)}::${normalizeText(
-            interaction.trackName
-        )}`
-    );
-}
+let cachedInteractions: Interaction[] | null = null;
+let cachedInteractionsPromise: Promise<Interaction[]> | null = null;
 
 function parseInteractionLine(line: string): Interaction | null {
-    let jsonLine = line.trim();
+    const trimmedLine = line.trim();
 
-    if (!jsonLine || jsonLine === "[" || jsonLine === "]") {
+    if (!trimmedLine || trimmedLine === "[" || trimmedLine === "]") {
         return null;
     }
 
-    if (jsonLine.endsWith(",")) {
-        jsonLine = jsonLine.slice(0, -1);
-    }
+    const normalizedLine = trimmedLine.endsWith(",")
+        ? trimmedLine.slice(0, -1)
+        : trimmedLine;
 
-    return JSON.parse(jsonLine) as Interaction;
+    return JSON.parse(normalizedLine) as Interaction;
 }
 
-function updateHeardSets(
-    aggregates: RecommendationAggregates,
-    interaction: Interaction,
-    userId: string
-): void {
-    if (interaction.userId !== userId) {
-        return;
+async function loadInteractionsFromStream(): Promise<Interaction[]> {
+    if (!fs.existsSync(INTERACTIONS_PATH)) {
+        return [];
     }
 
-    const artistKey = getArtistKey(interaction);
-    const trackKey = getTrackKey(interaction);
-
-    if (artistKey) {
-        aggregates.heardArtists.add(artistKey);
-    }
-
-    if (trackKey.trim() !== "::") {
-        aggregates.heardTracks.add(trackKey);
-    }
-}
-
-function updateArtistAggregates(
-    aggregates: RecommendationAggregates,
-    interaction: Interaction
-): void {
-    const artistId = normalizeText(interaction.artistId) || null;
-    const artistName = normalizeText(interaction.artistName);
-    const artistKey = artistId || artistName.toLowerCase();
-
-    if (!artistKey || !artistName) {
-        return;
-    }
-
-    const current =
-        aggregates.artists.get(artistKey) ??
-        {
-            artistId,
-            artistName,
-            playCount: 0
-        };
-
-    current.playCount += 1;
-    aggregates.artists.set(artistKey, current);
-}
-
-function updateTrackAggregates(
-    aggregates: RecommendationAggregates,
-    interaction: Interaction
-): void {
-    const trackId = normalizeText(interaction.trackId) || null;
-    const trackName = normalizeText(interaction.trackName);
-    const artistId = normalizeText(interaction.artistId) || null;
-    const artistName = normalizeText(interaction.artistName);
-    const trackKey = trackId || `${artistName}::${trackName}`;
-
-    if (!trackKey || !trackName || !artistName) {
-        return;
-    }
-
-    const current =
-        aggregates.tracks.get(trackKey) ??
-        {
-            trackId,
-            trackName,
-            artistId,
-            artistName,
-            playCount: 0
-        };
-
-    current.playCount += 1;
-    aggregates.tracks.set(trackKey, current);
-}
-
-async function aggregateInteractions(
-    userId: string
-): Promise<RecommendationAggregates> {
-    const aggregates: RecommendationAggregates = {
-        heardArtists: new Set<string>(),
-        heardTracks: new Set<string>(),
-        artists: new Map<string, ArtistAggregate>(),
-        tracks: new Map<string, TrackAggregate>()
-    };
-    const lines = readline.createInterface({
-        input: fs.createReadStream(INTERACTIONS_PATH, { encoding: "utf8" }),
+    const interactions: Interaction[] = [];
+    const stream = fs.createReadStream(INTERACTIONS_PATH, { encoding: "utf8" });
+    const lineReader = readline.createInterface({
+        input: stream,
         crlfDelay: Infinity
     });
 
-    for await (const line of lines) {
+    for await (const line of lineReader) {
         const interaction = parseInteractionLine(line);
 
-        if (!interaction) {
-            continue;
+        if (interaction) {
+            interactions.push(interaction);
         }
-
-        updateHeardSets(aggregates, interaction, userId);
-        updateArtistAggregates(aggregates, interaction);
-        updateTrackAggregates(aggregates, interaction);
     }
 
-    return aggregates;
-}
-
-function compareByPlayCount<T extends { playCount: number }>(
-    firstItem: T,
-    secondItem: T
-): number {
-    return secondItem.playCount - firstItem.playCount;
-}
-
-function buildRecommendedArtists(
-    aggregates: RecommendationAggregates,
-    limit: number
-): RecommendedArtist[] {
-    return [...aggregates.artists.values()]
-        .sort(compareByPlayCount)
-        .filter((artist) => {
-            const artistKey = artist.artistId || artist.artistName.toLowerCase();
-            return !aggregates.heardArtists.has(artistKey);
-        })
-        .slice(0, limit)
-        .map((artist) => ({
-            artistId: artist.artistId,
-            artistName: artist.artistName,
-            score: artist.playCount,
-            reason: "Popular among listeners on the platform"
-        }));
-}
-
-function buildRecommendedTracks(
-    aggregates: RecommendationAggregates,
-    limit: number
-): RecommendedTracks[] {
-    return [...aggregates.tracks.values()]
-        .sort(compareByPlayCount)
-        .filter((track) => {
-            const trackKey = track.trackId || `${track.artistName}::${track.trackName}`;
-
-            if (track.trackId == null || track.artistId == null) {
-                return false;
-            }
-
-            return !aggregates.heardTracks.has(trackKey);
-        })
-        .slice(0, limit)
-        .map((track) => ({
-            trackId: track.trackId,
-            trackName: track.trackName,
-            artistId: track.artistId,
-            artistName: track.artistName,
-            score: track.playCount,
-            reason: "Popular among listeners on the platform"
-        }));
+    return interactions;
 }
 
 export async function getRecommendationsForUser(
     userId: string,
     limit = 10
 ): Promise<BaselineRecommendationResult> {
-    const aggregates = await aggregateInteractions(userId);
+    const user = await getSafeUserById(userId);
 
-    return {
-        artists: buildRecommendedArtists(aggregates, limit),
-        tracks: buildRecommendedTracks(aggregates, limit)
-    };
+    if (!user) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+
+    cachedInteractionsPromise ??= loadInteractionsFromStream()
+        .catch(() => loadInteractions())
+        .then((interactions) => {
+            cachedInteractions = interactions;
+            return interactions;
+        })
+        .finally(() => {
+            cachedInteractionsPromise = null;
+        });
+
+    const interactions = cachedInteractions ?? (await cachedInteractionsPromise);
+    return getBaselineRecommendations(interactions, user, limit);
 }
