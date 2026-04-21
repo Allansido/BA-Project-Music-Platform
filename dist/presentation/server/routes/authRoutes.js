@@ -3,6 +3,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const authService_1 = require("../../../domain/auth/authService");
 const router = (0, express_1.Router)();
+function saveSession(session) {
+    return new Promise((resolve, reject) => {
+        session.save((error) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve();
+        });
+    });
+}
 router.get("/genres", (_req, res) => {
     res.json((0, authService_1.getAvailableGenres)());
 });
@@ -33,6 +44,7 @@ router.post("/signup", async (req, res) => {
         const user = await (0, authService_1.registerUser)(req.body);
         const session = req.session;
         session.userId = user.id;
+        await saveSession(session);
         return res.status(201).json(user);
     }
     catch (error) {
@@ -45,6 +57,7 @@ router.post("/login", async (req, res) => {
         const user = await (0, authService_1.loginUser)(req.body);
         const session = req.session;
         session.userId = user.id;
+        await saveSession(session);
         return res.json(user);
     }
     catch (error) {
