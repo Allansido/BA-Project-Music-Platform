@@ -7,13 +7,31 @@ import type {
 import { AUTH_API_BASE_URL } from "./config";
 
 async function handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
+    const responseText = await response.text();
+    let data: unknown = null;
 
-    if (!response.ok) {
-        throw new Error(data.message || "Something went wrong.");
+    try {
+        data = responseText ? JSON.parse(responseText) : null;
+    } catch {
+        if (!response.ok) {
+            throw new Error("The auth server returned an invalid response.");
+        }
+
+        throw new Error("Could not read auth response.");
     }
 
-    return data;
+    if (!response.ok) {
+        const message =
+            data &&
+            typeof data === "object" &&
+            "message" in data &&
+            typeof data.message === "string"
+                ? data.message
+                : "Something went wrong.";
+        throw new Error(message);
+    }
+
+    return data as T;
 }
 
 export async function getGenres(): Promise<string[]> {
