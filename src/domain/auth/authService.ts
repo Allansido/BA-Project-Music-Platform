@@ -265,6 +265,6 @@ export function getAvailableGenres(): string[] {
     return AVAILABLE_GENRES;
 }
 
-export function getAvailableArtists(): Promise<OnboardingArtist[]> {
+export async function getAvailableArtists(): Promise<OnboardingArtist[]> {
     return getOnboardingArtists();
 }

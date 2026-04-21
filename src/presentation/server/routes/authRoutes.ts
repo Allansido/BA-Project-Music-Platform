@@ -13,6 +13,19 @@ type SessionWithUserId = Request["session"] & {
     userId?: string;
 };
 
+function saveSession(session: SessionWithUserId): Promise<void> {
+    return new Promise((resolve, reject) => {
+        session.save((error) => {
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            resolve();
+        });
+    });
+}
+
 router.get("/genres", (_req: Request, res: Response) => {
     res.json(getAvailableGenres());
 });
@@ -51,6 +64,7 @@ router.post("/signup", async (req: Request, res: Response) => {
         const user = await registerUser(req.body);
         const session = req.session as SessionWithUserId;
         session.userId = user.id;
+        await saveSession(session);
         return res.status(201).json(user);
     } catch (error) {
         const message =
@@ -64,6 +78,7 @@ router.post("/login", async (req: Request, res: Response) => {
         const user = await loginUser(req.body);
         const session = req.session as SessionWithUserId;
         session.userId = user.id;
+        await saveSession(session);
         return res.json(user);
     } catch (error) {
         const message =
