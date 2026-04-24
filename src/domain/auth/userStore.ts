@@ -166,6 +166,47 @@ export async function createUser(user: User): Promise<User> {
     return user;
 }
 
+export async function updateUser(user: User): Promise<User> {
+    await initUserStore();
+
+    await pool.query(
+        `
+            UPDATE users
+            SET
+                name = $2,
+                email = $3,
+                role = $4,
+                genres = $5::jsonb,
+                favorite_artists = $6::jsonb,
+                role_details = $7::jsonb
+            WHERE id = $1
+        `,
+        [
+            user.id,
+            user.name,
+            user.email,
+            user.role,
+            JSON.stringify(user.genres),
+            JSON.stringify(user.favoriteArtists),
+            JSON.stringify(user.roleDetails)
+        ]
+    );
+
+    return user;
+}
+
+export async function deleteUserById(id: string): Promise<void> {
+    await initUserStore();
+
+    await pool.query(
+        `
+            DELETE FROM users
+            WHERE id = $1
+        `,
+        [id]
+    );
+}
+
 export async function getAllUsers(): Promise<User[]> {
     await initUserStore();
 

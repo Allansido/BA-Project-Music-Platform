@@ -11,14 +11,15 @@ interface DashboardPageProps {
 }
 
 const sidebarItems = [
-    { icon: "⌂", label: "Home", to: "/dashboard" },
-    { icon: "⌕", label: "Search" },
-    { icon: "▤", label: "Library" },
-    { icon: "♪", label: "Recommendations", to: "/recommendations" },
-    { icon: "★", label: "Artists", to: "/artists" },
-    { icon: "◉", label: "Radio" },
+    { icon: "H", label: "Home", to: "/dashboard" },
+    { icon: "S", label: "Search" },
+    { icon: "L", label: "Library" },
+    { icon: "R", label: "Recommendations", to: "/recommendations" },
+    { icon: "A", label: "Artists", to: "/artists" },
+    { icon: "P", label: "Profile", to: "/profile" },
+    { icon: "O", label: "Radio" },
     { icon: "+", label: "Create playlist" },
-    { icon: "⇧", label: "Upload" }
+    { icon: "U", label: "Upload" }
 ];
 
 const fallbackUpcomingArtists = [
@@ -246,7 +247,12 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                         <p className="eyebrow">Your profile</p>
                         <h2>{getRoleSummary(user)}</h2>
                     </div>
-                    <p>{user.favoriteArtists.slice(0, 4).join(", ")}</p>
+                    <div className="profile-strip-actions">
+                        <p>{user.favoriteArtists.slice(0, 4).join(", ")}</p>
+                        <Link className="secondary-button nav-button" to="/profile">
+                            Edit profile
+                        </Link>
+                    </div>
                 </section>
             </div>
         </main>
