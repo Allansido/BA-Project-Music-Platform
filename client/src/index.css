@@ -980,6 +980,10 @@ h2 {
     font-size: 0.8rem;
 }
 
+.artist-load-more {
+    align-self: flex-start;
+}
+
 .review-list {
     display: grid;
     gap: 0.75rem;

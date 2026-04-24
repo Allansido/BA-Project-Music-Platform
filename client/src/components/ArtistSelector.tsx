@@ -1,4 +1,9 @@
+import { useEffect, useMemo, useState } from "react";
 import type { OnboardingArtist } from "../types/auth";
+
+const DEFAULT_VISIBLE_ARTIST_COUNT = 60;
+const SEARCH_VISIBLE_ARTIST_COUNT = 120;
+const LOAD_MORE_ARTIST_COUNT = 60;
 
 interface ArtistSelectorProps {
     artists: OnboardingArtist[];
@@ -17,12 +22,25 @@ function ArtistSelector({
     onToggleArtist,
     error
 }: ArtistSelectorProps) {
+    const [visibleCount, setVisibleCount] = useState(DEFAULT_VISIBLE_ARTIST_COUNT);
     const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-    const visibleArtists = artists
-        .filter((artist) =>
-            artist.name.toLowerCase().includes(normalizedSearchTerm)
-        )
-        .slice(0, 36);
+    const filteredArtists = useMemo(
+        () =>
+            artists.filter((artist) =>
+                artist.name.toLowerCase().includes(normalizedSearchTerm)
+            ),
+        [artists, normalizedSearchTerm]
+    );
+    const visibleArtists = filteredArtists.slice(0, visibleCount);
+    const hasMoreArtists = filteredArtists.length > visibleArtists.length;
+
+    useEffect(() => {
+        setVisibleCount(
+            normalizedSearchTerm
+                ? SEARCH_VISIBLE_ARTIST_COUNT
+                : DEFAULT_VISIBLE_ARTIST_COUNT
+        );
+    }, [normalizedSearchTerm]);
 
     return (
         <div className="choice-section">
@@ -71,7 +89,25 @@ function ArtistSelector({
                 })}
             </div>
 
-            {visibleArtists.length === 0 ? (
+            {hasMoreArtists ? (
+                <button
+                    type="button"
+                    className="secondary-button artist-load-more"
+                    onClick={() =>
+                        setVisibleCount(
+                            (currentVisibleCount) =>
+                                currentVisibleCount + LOAD_MORE_ARTIST_COUNT
+                        )
+                    }
+                >
+                    Show {Math.min(
+                        LOAD_MORE_ARTIST_COUNT,
+                        filteredArtists.length - visibleArtists.length
+                    )} more artists
+                </button>
+            ) : null}
+
+            {filteredArtists.length === 0 ? (
                 <p className="empty-site-text">No artists match that search.</p>
             ) : null}
 
