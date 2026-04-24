@@ -4,6 +4,8 @@ exports.initUserStore = initUserStore;
 exports.findUserByEmail = findUserByEmail;
 exports.findUserById = findUserById;
 exports.createUser = createUser;
+exports.updateUser = updateUser;
+exports.deleteUserById = deleteUserById;
 exports.getAllUsers = getAllUsers;
 const database_1 = require("../../infrastructure/database");
 let initPromise = null;
@@ -123,6 +125,36 @@ async function createUser(user) {
         JSON.stringify(user.roleDetails)
     ]);
     return user;
+}
+async function updateUser(user) {
+    await initUserStore();
+    await database_1.pool.query(`
+            UPDATE users
+            SET
+                name = $2,
+                email = $3,
+                role = $4,
+                genres = $5::jsonb,
+                favorite_artists = $6::jsonb,
+                role_details = $7::jsonb
+            WHERE id = $1
+        `, [
+        user.id,
+        user.name,
+        user.email,
+        user.role,
+        JSON.stringify(user.genres),
+        JSON.stringify(user.favoriteArtists),
+        JSON.stringify(user.roleDetails)
+    ]);
+    return user;
+}
+async function deleteUserById(id) {
+    await initUserStore();
+    await database_1.pool.query(`
+            DELETE FROM users
+            WHERE id = $1
+        `, [id]);
 }
 async function getAllUsers() {
     await initUserStore();

@@ -56,6 +56,14 @@ export interface SignupInput {
     roleDetails?: RoleDetails;
 }
 
+export interface ProfileUpdateInput {
+    name: string;
+    email: string;
+    genres: string[];
+    favoriteArtists: string[];
+    roleDetails?: RoleDetails;
+}
+
 export interface LoginInput {
     email: string;
     password: string;

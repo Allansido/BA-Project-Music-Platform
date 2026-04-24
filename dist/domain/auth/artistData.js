@@ -7,7 +7,6 @@ exports.getOnboardingArtists = getOnboardingArtists;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const readline_1 = __importDefault(require("readline"));
-const ARTIST_LIMIT = 60;
 const ESTABLISHED_ARTIST_RATIO = 0.2;
 const artistSegmentsPath = path_1.default.join(process.cwd(), "dataset", "processed", "artistSegments.json");
 const interactionsPath = path_1.default.join(process.cwd(), "dataset", "processed", "interactions.json");
@@ -69,8 +68,7 @@ function readArtistsFromSegments() {
         listenerCount: artist.listenerCount ?? 0,
         segment: artist.segment ?? "emerging"
     })))
-        .sort(byPopularity)
-        .slice(0, ARTIST_LIMIT);
+        .sort(byPopularity);
 }
 async function readArtistsFromInteractions() {
     if (!fs_1.default.existsSync(interactionsPath)) {
@@ -115,7 +113,7 @@ async function readArtistsFromInteractions() {
         segment: establishedArtistKeys.has(artist.id)
             ? "established"
             : "emerging"
-    }))).slice(0, ARTIST_LIMIT);
+    })));
 }
 async function getOnboardingArtists() {
     if (cachedArtists) {

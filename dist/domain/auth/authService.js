@@ -6,6 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerUser = registerUser;
 exports.loginUser = loginUser;
 exports.getSafeUserById = getSafeUserById;
+exports.updateCurrentUserProfile = updateCurrentUserProfile;
+exports.deleteCurrentUserAccount = deleteCurrentUserAccount;
 exports.getAvailableGenres = getAvailableGenres;
 exports.getAvailableArtists = getAvailableArtists;
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
@@ -96,9 +98,25 @@ function toSafeUser(user) {
     };
 }
 async function validateSignupInput(input) {
+    await validateProfileData({
+        name: input.name,
+        email: input.email,
+        role: input.role,
+        genres: input.genres,
+        favoriteArtists: input.favoriteArtists,
+        roleDetails: input.roleDetails
+    });
+    const password = input.password ?? "";
+    if (!password) {
+        throw new Error("Password is required.");
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
+    }
+}
+async function validateProfileData(input) {
     const name = input.name?.trim();
     const email = normalizeEmail(input.email ?? "");
-    const password = input.password ?? "";
     const role = input.role;
     const genres = normalizeGenres(input.genres ?? []);
     const favoriteArtists = normalizeFavoriteArtists(input.favoriteArtists ?? []);
@@ -110,12 +128,6 @@ async function validateSignupInput(input) {
     }
     if (!isValidEmail(email)) {
         throw new Error("Please provide a valid email address.");
-    }
-    if (!password) {
-        throw new Error("Password is required.");
-    }
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`);
     }
     if (!ALLOWED_ROLES.includes(role)) {
         throw new Error("Please choose a valid account type.");
@@ -190,6 +202,49 @@ async function getSafeUserById(userId) {
         return null;
     }
     return toSafeUser(user);
+}
+async function updateCurrentUserProfile(userId, input) {
+    const existingUser = await (0, userStore_1.findUserById)(userId);
+    if (!existingUser) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+    await validateProfileData({
+        name: input.name,
+        email: input.email,
+        role: existingUser.role,
+        genres: input.genres,
+        favoriteArtists: input.favoriteArtists,
+        roleDetails: input.roleDetails
+    });
+    const normalizedEmail = normalizeEmail(input.email);
+    const trimmedName = input.name.trim();
+    const normalizedGenres = normalizeGenres(input.genres);
+    const normalizedFavoriteArtists = normalizeFavoriteArtists(input.favoriteArtists);
+    const normalizedRoleDetails = getNormalizedRoleDetails({
+        ...input,
+        role: existingUser.role
+    });
+    const conflictingUser = await (0, userStore_1.findUserByEmail)(normalizedEmail);
+    if (conflictingUser && conflictingUser.id !== existingUser.id) {
+        throw new Error("An account with that email already exists.");
+    }
+    const updatedUser = {
+        ...existingUser,
+        name: trimmedName,
+        email: normalizedEmail,
+        genres: normalizedGenres,
+        favoriteArtists: normalizedFavoriteArtists,
+        roleDetails: normalizedRoleDetails
+    };
+    await (0, userStore_1.updateUser)(updatedUser);
+    return toSafeUser(updatedUser);
+}
+async function deleteCurrentUserAccount(userId) {
+    const existingUser = await (0, userStore_1.findUserById)(userId);
+    if (!existingUser) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+    await (0, userStore_1.deleteUserById)(userId);
 }
 function getAvailableGenres() {
     return genreData_1.AVAILABLE_GENRES;
