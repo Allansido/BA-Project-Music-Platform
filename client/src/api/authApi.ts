@@ -1,6 +1,7 @@
 import type {
     LoginPayload,
     OnboardingArtist,
+    ProfileUpdatePayload,
     SafeUser,
     SignupPayload
 } from "../types/auth";
@@ -87,6 +88,30 @@ export async function login(payload: LoginPayload): Promise<SafeUser> {
 export async function logout(): Promise<{ message: string }> {
     const response = await fetch(`${AUTH_API_BASE_URL}/logout`, {
         method: "POST",
+        credentials: "include"
+    });
+
+    return handleResponse<{ message: string }>(response);
+}
+
+export async function updateProfile(
+    payload: ProfileUpdatePayload
+): Promise<SafeUser> {
+    const response = await fetch(`${AUTH_API_BASE_URL}/me`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+
+    return handleResponse<SafeUser>(response);
+}
+
+export async function deleteAccount(): Promise<{ message: string }> {
+    const response = await fetch(`${AUTH_API_BASE_URL}/me`, {
+        method: "DELETE",
         credentials: "include"
     });
 

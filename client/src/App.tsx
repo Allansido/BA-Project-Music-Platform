@@ -6,6 +6,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import ThemeToggle from "./components/ThemeToggle";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
+import ProfilePage from "./pages/ProfilePage";
 import RecommendationsPage from "./pages/RecommendationsPage";
 import SignupPage from "./pages/SignupPage";
 import UpcomingArtistsPage from "./pages/UpcomingArtistsPage";
@@ -95,6 +96,18 @@ function App() {
                 element={
                     <ProtectedRoute user={user}>
                         <RecommendationsPage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/profile"
+                element={
+                    <ProtectedRoute user={user}>
+                        <ProfilePage
+                            user={user as SafeUser}
+                            onUserChange={setUser}
+                            onDeleteAccount={() => setUser(null)}
+                        />
                     </ProtectedRoute>
                 }
             />

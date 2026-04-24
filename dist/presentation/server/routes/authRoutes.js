@@ -39,6 +39,21 @@ router.get("/me", async (req, res) => {
     }
     return res.json(user);
 });
+router.patch("/me", async (req, res) => {
+    try {
+        const session = req.session;
+        const userId = session.userId;
+        if (!userId) {
+            return res.status(401).json({ message: "Not logged in." });
+        }
+        const user = await (0, authService_1.updateCurrentUserProfile)(userId, req.body);
+        return res.json(user);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Profile update failed.";
+        return res.status(400).json({ message });
+    }
+});
 router.post("/signup", async (req, res) => {
     try {
         const user = await (0, authService_1.registerUser)(req.body);
@@ -73,5 +88,26 @@ router.post("/logout", (req, res) => {
         res.clearCookie("connect.sid");
         return res.json({ message: "Logged out successfully." });
     });
+});
+router.delete("/me", async (req, res) => {
+    try {
+        const session = req.session;
+        const userId = session.userId;
+        if (!userId) {
+            return res.status(401).json({ message: "Not logged in." });
+        }
+        await (0, authService_1.deleteCurrentUserAccount)(userId);
+        req.session.destroy((error) => {
+            if (error) {
+                return res.status(500).json({ message: "Account deleted, but logout failed." });
+            }
+            res.clearCookie("connect.sid");
+            return res.json({ message: "Account deleted successfully." });
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : "Account deletion failed.";
+        return res.status(400).json({ message });
+    }
 });
 exports.default = router;

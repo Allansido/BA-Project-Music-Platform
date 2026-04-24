@@ -45,6 +45,14 @@ export interface SignupPayload {
     roleDetails: RoleDetails;
 }
 
+export interface ProfileUpdatePayload {
+    name: string;
+    email: string;
+    genres: string[];
+    favoriteArtists: string[];
+    roleDetails: RoleDetails;
+}
+
 export interface LoginPayload {
     email: string;
     password: string;
