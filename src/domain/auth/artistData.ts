@@ -29,7 +29,6 @@ interface MutableArtistStats {
     listeners: Set<string>;
 }
 
-const ARTIST_LIMIT = 60;
 const ESTABLISHED_ARTIST_RATIO = 0.2;
 const artistSegmentsPath = path.join(
     process.cwd(),
@@ -128,8 +127,7 @@ function readArtistsFromSegments(): OnboardingArtist[] {
             segment: artist.segment ?? "emerging"
         }))
     )
-        .sort(byPopularity)
-        .slice(0, ARTIST_LIMIT);
+        .sort(byPopularity);
 }
 
 async function readArtistsFromInteractions(): Promise<OnboardingArtist[]> {
@@ -191,7 +189,7 @@ async function readArtistsFromInteractions(): Promise<OnboardingArtist[]> {
                 ? "established"
                 : "emerging"
         }))
-    ).slice(0, ARTIST_LIMIT);
+    );
 }
 
 export async function getOnboardingArtists(): Promise<OnboardingArtist[]> {
