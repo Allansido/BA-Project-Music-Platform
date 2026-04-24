@@ -491,8 +491,127 @@ h2 {
     padding: 1rem;
 }
 
+.profile-strip-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
 .profile-strip h2 {
     font-size: 1.3rem;
+}
+
+.profile-page {
+    width: min(1240px, calc(100% - 2rem));
+    margin: 0 auto;
+    padding: 2rem 0 4rem;
+}
+
+.profile-hero-card,
+.profile-form-card,
+.profile-avatar-panel {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 18px 38px var(--shadow-soft);
+}
+
+.profile-hero-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+    gap: 1rem;
+    align-items: stretch;
+    margin-bottom: 1.5rem;
+    padding: 1.4rem;
+}
+
+.profile-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.profile-form-card {
+    display: grid;
+    gap: 1.25rem;
+    padding: 1.2rem;
+}
+
+.profile-section {
+    display: grid;
+    gap: 1rem;
+}
+
+.section-heading.compact {
+    margin-bottom: 0;
+}
+
+.profile-avatar-panel {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 1rem;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.profile-avatar-placeholder {
+    display: inline-grid;
+    width: 82px;
+    height: 82px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: var(--surface);
+    font-size: 2rem;
+    font-weight: 900;
+    box-shadow: 0 14px 28px var(--shadow-soft);
+}
+
+.profile-meta-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.profile-actions {
+    padding: 0;
+}
+
+.profile-delete-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: 1rem 0 0;
+}
+
+.success-text {
+    margin: 0;
+    color: var(--primary);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.delete-account-link {
+    border: 0;
+    background: transparent;
+    color: #b53d3d;
+    cursor: pointer;
+    font-weight: 700;
+    padding: 0.25rem 0;
+    transition: 0.18s ease;
+}
+
+.delete-account-link:hover {
+    color: #982c2c;
+    text-decoration: underline;
+}
+
+.delete-account-link:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
 }
 
 .upcoming-page {
@@ -1107,7 +1226,9 @@ h2 {
     .home-hero,
     .music-row,
     .artist-row,
-    .profile-strip {
+    .profile-strip,
+    .profile-hero-card,
+    .profile-layout {
         grid-template-columns: 1fr;
     }
 
@@ -1186,7 +1307,14 @@ h2 {
     .form-actions .secondary-button {
         flex: 1 1 0;
     }
+
     .sidebar-nav {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .profile-strip-actions,
+    .profile-avatar-panel {
+        flex-direction: column;
+        align-items: flex-end;
     }
 }

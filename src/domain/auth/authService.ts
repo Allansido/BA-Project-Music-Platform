@@ -1,10 +1,17 @@
 import bcrypt from "bcryptjs";
 import { getOnboardingArtists, OnboardingArtist } from "./artistData";
 import { AVAILABLE_GENRES } from "./genreData";
-import { createUser, findUserByEmail, findUserById } from "./userStore";
+import {
+    createUser,
+    deleteUserById,
+    findUserByEmail,
+    findUserById,
+    updateUser
+} from "./userStore";
 import {
     ArtistDetails,
     LoginInput,
+    ProfileUpdateInput,
     ProducerDetails,
     RoleDetails,
     SafeUser,
@@ -46,7 +53,10 @@ function isValidEmail(email: string): boolean {
     return /\S+@\S+\.\S+/.test(email);
 }
 
-function getNormalizedRoleDetails(input: SignupInput): RoleDetails {
+function getNormalizedRoleDetails(input: {
+    role: UserRole;
+    roleDetails?: RoleDetails;
+}): RoleDetails {
     const roleDetails = input.roleDetails ?? {};
 
     if (input.role === "artist") {
@@ -124,9 +134,38 @@ function toSafeUser(user: User): SafeUser {
 }
 
 async function validateSignupInput(input: SignupInput): Promise<void> {
+    await validateProfileData({
+        name: input.name,
+        email: input.email,
+        role: input.role,
+        genres: input.genres,
+        favoriteArtists: input.favoriteArtists,
+        roleDetails: input.roleDetails
+    });
+
+    const password = input.password ?? "";
+
+    if (!password) {
+        throw new Error("Password is required.");
+    }
+
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new Error(
+            `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`
+        );
+    }
+}
+
+async function validateProfileData(input: {
+    name: string;
+    email: string;
+    role: UserRole;
+    genres: string[];
+    favoriteArtists: string[];
+    roleDetails?: RoleDetails;
+}): Promise<void> {
     const name = input.name?.trim();
     const email = normalizeEmail(input.email ?? "");
-    const password = input.password ?? "";
     const role = input.role;
     const genres = normalizeGenres(input.genres ?? []);
     const favoriteArtists = normalizeFavoriteArtists(input.favoriteArtists ?? []);
@@ -141,16 +180,6 @@ async function validateSignupInput(input: SignupInput): Promise<void> {
 
     if (!isValidEmail(email)) {
         throw new Error("Please provide a valid email address.");
-    }
-
-    if (!password) {
-        throw new Error("Password is required.");
-    }
-
-    if (password.length < MIN_PASSWORD_LENGTH) {
-        throw new Error(
-            `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`
-        );
     }
 
     if (!ALLOWED_ROLES.includes(role)) {
@@ -259,6 +288,64 @@ export async function getSafeUserById(userId: string): Promise<SafeUser | null> 
     }
 
     return toSafeUser(user);
+}
+
+export async function updateCurrentUserProfile(
+    userId: string,
+    input: ProfileUpdateInput
+): Promise<SafeUser> {
+    const existingUser = await findUserById(userId);
+
+    if (!existingUser) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+
+    await validateProfileData({
+        name: input.name,
+        email: input.email,
+        role: existingUser.role,
+        genres: input.genres,
+        favoriteArtists: input.favoriteArtists,
+        roleDetails: input.roleDetails
+    });
+
+    const normalizedEmail = normalizeEmail(input.email);
+    const trimmedName = input.name.trim();
+    const normalizedGenres = normalizeGenres(input.genres);
+    const normalizedFavoriteArtists = normalizeFavoriteArtists(input.favoriteArtists);
+    const normalizedRoleDetails = getNormalizedRoleDetails({
+        ...input,
+        role: existingUser.role
+    });
+
+    const conflictingUser = await findUserByEmail(normalizedEmail);
+
+    if (conflictingUser && conflictingUser.id !== existingUser.id) {
+        throw new Error("An account with that email already exists.");
+    }
+
+    const updatedUser: User = {
+        ...existingUser,
+        name: trimmedName,
+        email: normalizedEmail,
+        genres: normalizedGenres,
+        favoriteArtists: normalizedFavoriteArtists,
+        roleDetails: normalizedRoleDetails
+    };
+
+    await updateUser(updatedUser);
+
+    return toSafeUser(updatedUser);
+}
+
+export async function deleteCurrentUserAccount(userId: string): Promise<void> {
+    const existingUser = await findUserById(userId);
+
+    if (!existingUser) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+
+    await deleteUserById(userId);
 }
 
 export function getAvailableGenres(): string[] {
