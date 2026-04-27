@@ -4,6 +4,7 @@ import "./index.css";
 import { getCurrentUser } from "./api/authApi";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ThemeToggle from "./components/ThemeToggle";
+import CollaborationPage from "./pages/CollaborationPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -11,6 +12,7 @@ import RecommendationsPage from "./pages/RecommendationsPage";
 import SignupPage from "./pages/SignupPage";
 import UpcomingArtistsPage from "./pages/UpcomingArtistsPage";
 import type { SafeUser } from "./types/auth";
+import { getHomePathForUser } from "./utils/roleRouting";
 
 function App() {
     const [user, setUser] = useState<SafeUser | null>(null);
@@ -59,66 +61,99 @@ function App() {
                 }
             />
             <Routes>
-            <Route
-                path="/"
-                element={<Navigate to={user ? "/dashboard" : "/login"} replace />}
-            />
-            <Route
-                path="/login"
-                element={
-                    user ? (
-                        <Navigate to="/dashboard" replace />
-                    ) : (
-                        <LoginPage onLoginSuccess={setUser} />
-                    )
-                }
-            />
-            <Route
-                path="/signup"
-                element={
-                    user ? (
-                        <Navigate to="/dashboard" replace />
-                    ) : (
-                        <SignupPage onSignupSuccess={setUser} />
-                    )
-                }
-            />
-            <Route
-                path="/dashboard"
-                element={
-                    <ProtectedRoute user={user}>
-                        <DashboardPage user={user as SafeUser} onLogout={() => setUser(null)} />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/recommendations"
-                element={
-                    <ProtectedRoute user={user}>
-                        <RecommendationsPage />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/profile"
-                element={
-                    <ProtectedRoute user={user}>
-                        <ProfilePage
-                            user={user as SafeUser}
-                            onUserChange={setUser}
-                            onDeleteAccount={() => setUser(null)}
+                <Route
+                    path="/"
+                    element={
+                        <Navigate
+                            to={user ? getHomePathForUser(user) : "/login"}
+                            replace
                         />
-                    </ProtectedRoute>
-                }
-            />
-            <Route
-                path="/artists"
-                element={
-                    <ProtectedRoute user={user}>
-                        <UpcomingArtistsPage />
-                    </ProtectedRoute>
-                }
-            />
+                    }
+                />
+                <Route
+                    path="/login"
+                    element={
+                        user ? (
+                            <Navigate to={getHomePathForUser(user)} replace />
+                        ) : (
+                            <LoginPage onLoginSuccess={setUser} />
+                        )
+                    }
+                />
+                <Route
+                    path="/signup"
+                    element={
+                        user ? (
+                            <Navigate to={getHomePathForUser(user)} replace />
+                        ) : (
+                            <SignupPage onSignupSuccess={setUser} />
+                        )
+                    }
+                />
+                <Route
+                    path="/dashboard"
+                    element={
+                        <ProtectedRoute user={user}>
+                            <Navigate
+                                to={getHomePathForUser(user as SafeUser)}
+                                replace
+                            />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/listener"
+                    element={
+                        <ProtectedRoute user={user} allowedRoles={["listener"]}>
+                            <DashboardPage
+                                user={user as SafeUser}
+                                onLogout={() => setUser(null)}
+                            />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/collaboration"
+                    element={
+                        <ProtectedRoute
+                            user={user}
+                            allowedRoles={["artist", "producer"]}
+                        >
+                            <CollaborationPage
+                                user={user as SafeUser}
+                                onLogout={() => setUser(null)}
+                            />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/recommendations"
+                    element={
+                        <ProtectedRoute user={user} allowedRoles={["listener"]}>
+                            <RecommendationsPage />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute user={user}>
+                            <ProfilePage
+                                user={user as SafeUser}
+                                onUserChange={setUser}
+                                onDeleteAccount={() => setUser(null)}
+                            />
+                        </ProtectedRoute>
+                    }
+                />
+                <Route
+                    path="/artists"
+                    element={
+                        <ProtectedRoute user={user} allowedRoles={["listener"]}>
+                            <UpcomingArtistsPage />
+                        </ProtectedRoute>
+                    }
+                />
             </Routes>
         </>
     );

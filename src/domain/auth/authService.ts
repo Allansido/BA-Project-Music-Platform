@@ -67,7 +67,12 @@ function getNormalizedRoleDetails(input: {
                 artistName: normalizeString(artistDetails?.artistName),
                 location: normalizeString(artistDetails?.location),
                 bio: normalizeString(artistDetails?.bio),
-                releaseStatus: normalizeString(artistDetails?.releaseStatus)
+                releaseStatus: normalizeString(artistDetails?.releaseStatus),
+                services: normalizeStringArray(artistDetails?.services),
+                collaborationGoal: normalizeString(
+                    artistDetails?.collaborationGoal
+                ),
+                resumeLink: normalizeString(artistDetails?.resumeLink)
             }
         };
     }
@@ -78,12 +83,14 @@ function getNormalizedRoleDetails(input: {
         return {
             producer: {
                 producerName: normalizeString(producerDetails?.producerName),
+                location: normalizeString(producerDetails?.location),
                 studioName: normalizeString(producerDetails?.studioName),
                 services: normalizeStringArray(producerDetails?.services),
                 tools: normalizeString(producerDetails?.tools),
                 collaborationGoal: normalizeString(
                     producerDetails?.collaborationGoal
-                )
+                ),
+                resumeLink: normalizeString(producerDetails?.resumeLink)
             }
         };
     }
