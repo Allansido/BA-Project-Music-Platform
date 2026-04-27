@@ -1,15 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getArtistAccountAgeDays = getArtistAccountAgeDays;
+exports.classifyArtistSegment = classifyArtistSegment;
 exports.splitArtistsBySegment = splitArtistsBySegment;
-const DEFAULT_ESTABLISHED_ARTIST_RATIO = 0.2;
+const fairnessConfig_1 = require("./fairnessConfig");
 function normalizeText(value) {
     return value?.trim() ?? "";
 }
-function clampEstablishedArtistRatio(ratio) {
-    if (!Number.isFinite(ratio)) {
-        return DEFAULT_ESTABLISHED_ARTIST_RATIO;
+function getValidThreshold(value, fallback) {
+    if (value == null || !Number.isFinite(value) || value < 0) {
+        return fallback;
     }
-    return Math.min(Math.max(ratio, 0), 1);
+    return value;
 }
 function getArtistKey(interaction) {
     const artistId = normalizeText(interaction.artistId);
@@ -33,7 +35,34 @@ function updateDateRange(stats, timestamp) {
         stats.lastListenedAt = timestamp;
     }
 }
-function toArtistStats(stats, segment) {
+function getArtistAccountAgeDays(firstListenedAt, referenceDate = new Date()) {
+    if (!firstListenedAt) {
+        return null;
+    }
+    const firstObservedAt = new Date(firstListenedAt);
+    if (Number.isNaN(firstObservedAt.getTime())) {
+        return null;
+    }
+    const millisecondsDiff = referenceDate.getTime() - firstObservedAt.getTime();
+    if (!Number.isFinite(millisecondsDiff) || millisecondsDiff < 0) {
+        return 0;
+    }
+    return Math.floor(millisecondsDiff / (1000 * 60 * 60 * 24));
+}
+function classifyArtistSegment(artist, options = {}) {
+    const thresholds = {
+        emergingMaxAccountAgeDays: getValidThreshold(options.emergingMaxAccountAgeDays, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds.emergingMaxAccountAgeDays),
+        emergingMaxTotalListens: getValidThreshold(options.emergingMaxTotalListens, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds.emergingMaxTotalListens)
+    };
+    const accountAgeDays = getArtistAccountAgeDays(artist.firstListenedAt, options.referenceDate);
+    const hasEmergingAge = accountAgeDays != null
+        && accountAgeDays <= thresholds.emergingMaxAccountAgeDays;
+    const hasEmergingListenCount = artist.playCount <= thresholds.emergingMaxTotalListens;
+    return hasEmergingAge && hasEmergingListenCount
+        ? "emerging"
+        : "established";
+}
+function toArtistStats(stats, segment, referenceDate) {
     return {
         artistKey: stats.artistKey,
         artistId: stats.artistId,
@@ -43,6 +72,7 @@ function toArtistStats(stats, segment) {
         trackCount: stats.tracks.size,
         firstListenedAt: stats.firstListenedAt,
         lastListenedAt: stats.lastListenedAt,
+        accountAgeDays: getArtistAccountAgeDays(stats.firstListenedAt, referenceDate),
         segment
     };
 }
@@ -54,7 +84,11 @@ function compareArtistPopularity(firstArtist, secondArtist) {
 }
 function splitArtistsBySegment(interactions, options = {}) {
     const artistsByKey = new Map();
-    const establishedArtistRatio = clampEstablishedArtistRatio(options.establishedArtistRatio ?? DEFAULT_ESTABLISHED_ARTIST_RATIO);
+    const referenceDate = options.referenceDate ?? new Date();
+    const thresholds = {
+        emergingMaxAccountAgeDays: getValidThreshold(options.emergingMaxAccountAgeDays, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds.emergingMaxAccountAgeDays),
+        emergingMaxTotalListens: getValidThreshold(options.emergingMaxTotalListens, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds.emergingMaxTotalListens)
+    };
     for (const interaction of interactions) {
         const artistKey = getArtistKey(interaction);
         if (!artistKey) {
@@ -84,23 +118,19 @@ function splitArtistsBySegment(interactions, options = {}) {
         artistsByKey.set(artistKey, stats);
     }
     const unsegmentedArtists = [...artistsByKey.values()]
-        .map((stats) => toArtistStats(stats, "emerging"))
+        .map((stats) => toArtistStats(stats, "emerging", referenceDate))
         .sort(compareArtistPopularity);
-    const establishedArtistCount = Math.ceil(unsegmentedArtists.length * establishedArtistRatio);
-    const establishedKeys = new Set(unsegmentedArtists
-        .slice(0, establishedArtistCount)
-        .map((artist) => artist.artistKey));
     const allArtists = unsegmentedArtists.map((artist) => ({
         ...artist,
-        segment: establishedKeys.has(artist.artistKey)
-            ? "established"
-            : "emerging"
+        segment: classifyArtistSegment(artist, {
+            ...thresholds,
+            referenceDate
+        })
     }));
     return {
         emerging: allArtists.filter((artist) => artist.segment === "emerging"),
         established: allArtists.filter((artist) => artist.segment === "established"),
         allArtists,
-        establishedArtistRatio,
-        establishedArtistCount
+        thresholds
     };
 }
