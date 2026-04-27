@@ -16,7 +16,6 @@ const sidebarItems = [
     { icon: "L", label: "Library" },
     { icon: "R", label: "Recommendations", to: "/recommendations" },
     { icon: "A", label: "Artists", to: "/artists" },
-    { icon: "P", label: "Profile", to: "/profile" },
     { icon: "O", label: "Radio" },
     { icon: "+", label: "Create playlist" },
     { icon: "U", label: "Upload" }
@@ -146,6 +145,7 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                 <div className="sidebar-profile">
                     <span>{user.role}</span>
                     <strong>{getRoleSummary(user)}</strong>
+                    <Link to="/profile">Profile</Link>
                     <button type="button" onClick={handleLogout}>
                         Logout
                     </button>

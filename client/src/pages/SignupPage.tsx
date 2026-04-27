@@ -25,11 +25,25 @@ const producerServices = [
     "Songwriting",
     "Artist development"
 ];
+const artistServices = [
+    "Vocals",
+    "Songwriting",
+    "Toplining",
+    "Live performance",
+    "Guitar",
+    "Keys"
+];
 const releaseStatuses = [
     "Preparing first release",
     "Released music already",
     "Actively performing",
     "Looking for collaborators"
+];
+const artistCollaborationGoals = [
+    "Find producers for my next release",
+    "Pitch for featured vocals",
+    "Join writing sessions",
+    "Build a live set with collaborators"
 ];
 const collaborationGoals = [
     "Find artists to produce",
@@ -88,7 +102,15 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
     const [artistReleaseStatus, setArtistReleaseStatus] = useState(
         releaseStatuses[0]
     );
+    const [selectedArtistServices, setSelectedArtistServices] = useState<string[]>(
+        []
+    );
+    const [artistCollaborationGoal, setArtistCollaborationGoal] = useState(
+        artistCollaborationGoals[0]
+    );
+    const [artistResumeLink, setArtistResumeLink] = useState("");
     const [producerName, setProducerName] = useState("");
+    const [producerLocation, setProducerLocation] = useState("");
     const [studioName, setStudioName] = useState("");
     const [selectedProducerServices, setSelectedProducerServices] = useState<
         string[]
@@ -97,6 +119,7 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
     const [producerCollaborationGoal, setProducerCollaborationGoal] = useState(
         collaborationGoals[0]
     );
+    const [producerResumeLink, setProducerResumeLink] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [genreError, setGenreError] = useState("");
     const [artistError, setArtistError] = useState("");
@@ -180,6 +203,18 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
         });
     }
 
+    function toggleArtistService(service: string) {
+        setSelectedArtistServices((currentServices) => {
+            if (currentServices.includes(service)) {
+                return currentServices.filter(
+                    (currentService) => currentService !== service
+                );
+            }
+
+            return [...currentServices, service];
+        });
+    }
+
     function buildRoleDetails() {
         if (role === "artist") {
             return {
@@ -187,7 +222,10 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                     artistName,
                     location: artistLocation,
                     bio: artistBio,
-                    releaseStatus: artistReleaseStatus
+                    releaseStatus: artistReleaseStatus,
+                    services: selectedArtistServices,
+                    collaborationGoal: artistCollaborationGoal,
+                    resumeLink: artistResumeLink
                 }
             };
         }
@@ -196,10 +234,12 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
             return {
                 producer: {
                     producerName,
+                    location: producerLocation,
                     studioName,
                     services: selectedProducerServices,
                     tools: producerTools,
-                    collaborationGoal: producerCollaborationGoal
+                    collaborationGoal: producerCollaborationGoal,
+                    resumeLink: producerResumeLink
                 }
             };
         }
@@ -551,6 +591,82 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                                             placeholder="A few words about your sound"
                                         />
                                     </div>
+                                    <div className="choice-section">
+                                        <div className="choice-section-heading">
+                                            <label className="form-label">
+                                                Collaboration services
+                                            </label>
+                                            <span>
+                                                {selectedArtistServices.length} selected
+                                            </span>
+                                        </div>
+                                        <div className="genre-grid">
+                                            {artistServices.map((service) => (
+                                                <button
+                                                    key={service}
+                                                    type="button"
+                                                    className={`choice-chip ${
+                                                        selectedArtistServices.includes(
+                                                            service
+                                                        )
+                                                            ? "selected"
+                                                            : ""
+                                                    }`}
+                                                    onClick={() =>
+                                                        toggleArtistService(service)
+                                                    }
+                                                >
+                                                    {service}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="form-grid two-columns">
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="artist-collaboration-goal"
+                                            >
+                                                Main collaboration goal
+                                            </label>
+                                            <select
+                                                id="artist-collaboration-goal"
+                                                className="form-input"
+                                                value={artistCollaborationGoal}
+                                                onChange={(event) =>
+                                                    setArtistCollaborationGoal(
+                                                        event.target.value
+                                                    )
+                                                }
+                                            >
+                                                {artistCollaborationGoals.map((goal) => (
+                                                    <option key={goal} value={goal}>
+                                                        {goal}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="artist-resume-link"
+                                            >
+                                                Resume or portfolio link
+                                            </label>
+                                            <input
+                                                id="artist-resume-link"
+                                                type="url"
+                                                className="form-input"
+                                                value={artistResumeLink}
+                                                onChange={(event) =>
+                                                    setArtistResumeLink(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                    </div>
                                 </>
                             ) : null}
 
@@ -595,6 +711,26 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                                                     setStudioName(event.target.value)
                                                 }
                                                 placeholder="Optional"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label
+                                                className="form-label"
+                                                htmlFor="producer-location"
+                                            >
+                                                Location
+                                            </label>
+                                            <input
+                                                id="producer-location"
+                                                type="text"
+                                                className="form-input"
+                                                value={producerLocation}
+                                                onChange={(event) =>
+                                                    setProducerLocation(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="City or remote"
                                             />
                                         </div>
                                     </div>
@@ -671,6 +807,26 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                                                 ))}
                                             </select>
                                         </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label
+                                            className="form-label"
+                                            htmlFor="producer-resume-link"
+                                        >
+                                            Resume or portfolio link
+                                        </label>
+                                        <input
+                                            id="producer-resume-link"
+                                            type="url"
+                                            className="form-input"
+                                            value={producerResumeLink}
+                                            onChange={(event) =>
+                                                setProducerResumeLink(
+                                                    event.target.value
+                                                )
+                                            }
+                                            placeholder="Optional"
+                                        />
                                     </div>
                                 </>
                             ) : null}
@@ -750,6 +906,10 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                                             <span>Artist journey</span>
                                             <strong>{artistReleaseStatus}</strong>
                                         </div>
+                                        <div>
+                                            <span>Collaboration goal</span>
+                                            <strong>{artistCollaborationGoal}</strong>
+                                        </div>
                                     </>
                                 ) : null}
                                 {role === "producer" ? (
@@ -763,6 +923,10 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                                             <strong>
                                                 {selectedProducerServices.join(", ")}
                                             </strong>
+                                        </div>
+                                        <div>
+                                            <span>Main goal</span>
+                                            <strong>{producerCollaborationGoal}</strong>
                                         </div>
                                     </>
                                 ) : null}
