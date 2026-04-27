@@ -1,9 +1,22 @@
 import fs from "fs";
 import readline from "readline";
 import { Interaction } from "../data/dataset_modules/lastfmLoader";
-import { BaselineRecommendationResult } from "../data/recommendation_modules/baselineRecommender";
+import {
+    BaselineRecommendationResult,
+    RecommendedArtist,
+    RecommendedTracks
+} from "../data/recommendation_modules/baselineRecommender";
+import {
+    applyExposureQuotaToArtists,
+    applyExposureQuotaToTracks
+} from "../data/recommendation_modules/fairnessRecommender";
+import {
+    ArtistSegment,
+    classifyArtistSegment
+} from "./artistSegmentation";
 import { SafeUser } from "./auth/types";
 import { getSafeUserById } from "./auth/authService";
+import { DEFAULT_FAIRNESS_CONFIG } from "./fairnessConfig";
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
 
@@ -27,6 +40,7 @@ type RecommendationIndex = {
     tracksByUser: Map<string, Map<string, TrackAggregate>>;
     popularArtists: Map<string, ArtistAggregate>;
     popularTracks: Map<string, TrackAggregate>;
+    artistGroups: Map<string, ArtistSegment>;
 };
 
 type ArtistScore = {
@@ -43,6 +57,14 @@ type TrackScore = {
     artistName: string;
     score: number;
     supportingNeighbors: number;
+};
+
+type ArtistGroupAggregate = {
+    artistId: string | null;
+    artistName: string;
+    playCount: number;
+    firstListenedAt: string | null;
+    lastListenedAt: string | null;
 };
 
 let cachedIndex: RecommendationIndex | null = null;
@@ -79,6 +101,31 @@ function parseInteractionLine(line: string): Interaction | null {
         : trimmedLine;
 
     return JSON.parse(normalizedLine) as Interaction;
+}
+
+function updateDateRange(
+    aggregate: ArtistGroupAggregate,
+    timestamp: string
+): void {
+    const normalizedTimestamp = normalizeText(timestamp);
+
+    if (!normalizedTimestamp) {
+        return;
+    }
+
+    if (
+        !aggregate.firstListenedAt
+        || normalizedTimestamp < aggregate.firstListenedAt
+    ) {
+        aggregate.firstListenedAt = normalizedTimestamp;
+    }
+
+    if (
+        !aggregate.lastListenedAt
+        || normalizedTimestamp > aggregate.lastListenedAt
+    ) {
+        aggregate.lastListenedAt = normalizedTimestamp;
+    }
 }
 
 async function streamInteractions(
@@ -121,8 +168,10 @@ async function buildRecommendationIndex(): Promise<RecommendationIndex> {
         artistsByUser: new Map<string, Map<string, ArtistAggregate>>(),
         tracksByUser: new Map<string, Map<string, TrackAggregate>>(),
         popularArtists: new Map<string, ArtistAggregate>(),
-        popularTracks: new Map<string, TrackAggregate>()
+        popularTracks: new Map<string, TrackAggregate>(),
+        artistGroups: new Map<string, ArtistSegment>()
     };
+    const artistGroupAggregates = new Map<string, ArtistGroupAggregate>();
 
     await streamInteractions((interaction) => {
         const userId = normalizeText(interaction.userId);
@@ -167,6 +216,25 @@ async function buildRecommendationIndex(): Promise<RecommendationIndex> {
             currentPopularArtist.artistId = artistId;
         }
         index.popularArtists.set(artistPreferenceKey, currentPopularArtist);
+
+        const currentArtistGroupAggregate =
+            artistGroupAggregates.get(artistPreferenceKey) ??
+            {
+                artistId,
+                artistName,
+                playCount: 0,
+                firstListenedAt: null,
+                lastListenedAt: null
+            };
+        currentArtistGroupAggregate.playCount += 1;
+        if (!currentArtistGroupAggregate.artistId) {
+            currentArtistGroupAggregate.artistId = artistId;
+        }
+        updateDateRange(currentArtistGroupAggregate, interaction.timestamp);
+        artistGroupAggregates.set(
+            artistPreferenceKey,
+            currentArtistGroupAggregate
+        );
 
         const trackName = normalizeText(interaction.trackName);
         const trackId = normalizeText(interaction.trackId) || null;
@@ -219,6 +287,15 @@ async function buildRecommendationIndex(): Promise<RecommendationIndex> {
         }
         index.popularTracks.set(trackKey, currentPopularTrack);
     });
+
+    for (const [artistPreferenceKey, artist] of artistGroupAggregates) {
+        index.artistGroups.set(
+            artistPreferenceKey,
+            classifyArtistSegment(artist, {
+                ...DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds
+            })
+        );
+    }
 
     return index;
 }
@@ -409,6 +486,33 @@ function getPreferenceBasedRecommendations(
     return { artists, tracks };
 }
 
+function getCreatorGroupForArtist(
+    artistName: string,
+    index: RecommendationIndex
+): ArtistSegment {
+    const artistPreferenceKey = getArtistPreferenceKey(artistName);
+    return index.artistGroups.get(artistPreferenceKey) ?? "established";
+}
+
+function attachCreatorGroups(
+    recommendations: BaselineRecommendationResult,
+    index: RecommendationIndex
+): {
+    artists: RecommendedArtist[];
+    tracks: RecommendedTracks[];
+} {
+    return {
+        artists: recommendations.artists.map((artist) => ({
+            ...artist,
+            creatorGroup: getCreatorGroupForArtist(artist.artistName, index)
+        })),
+        tracks: recommendations.tracks.map((track) => ({
+            ...track,
+            creatorGroup: getCreatorGroupForArtist(track.artistName, index)
+        }))
+    };
+}
+
 export async function getRecommendationsForUser(
     userId: string,
     limit = 10
@@ -420,5 +524,44 @@ export async function getRecommendationsForUser(
     }
 
     const index = await getRecommendationIndex();
-    return getPreferenceBasedRecommendations(index, user, limit);
+    const candidatePoolSize = Math.max(
+        limit,
+        DEFAULT_FAIRNESS_CONFIG.candidatePoolSize,
+        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN
+    );
+    const baselineRecommendations = getPreferenceBasedRecommendations(
+        index,
+        user,
+        candidatePoolSize
+    );
+    const recommendationsWithGroups = attachCreatorGroups(
+        baselineRecommendations,
+        index
+    );
+    const artistQuotaResult = applyExposureQuotaToArtists(
+        recommendationsWithGroups.artists,
+        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
+    );
+    const trackQuotaResult = applyExposureQuotaToTracks(
+        recommendationsWithGroups.tracks,
+        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
+    );
+
+    return {
+        artists: artistQuotaResult.artists.slice(0, limit),
+        tracks: trackQuotaResult.tracks.slice(0, limit),
+        fairness: {
+            enabled: DEFAULT_FAIRNESS_CONFIG.enabled,
+            candidatePoolSize,
+            topN: DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN,
+            minimumExposureByGroup:
+                DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.minimumExposureByGroup,
+            prefixCheckpoints:
+                DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.prefixCheckpoints,
+            creatorGroupThresholds:
+                DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds,
+            artists: artistQuotaResult.evaluation,
+            tracks: trackQuotaResult.evaluation
+        }
+    };
 }
