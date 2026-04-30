@@ -1,3 +1,4 @@
+import { ArtistSegment } from "../../domain/artistSegmentation";
 import { Interaction } from "../dataset_modules/lastfmLoader";
 import { SafeUser } from "../../domain/auth/types";
 
@@ -6,6 +7,7 @@ export interface RecommendedArtist {
     artistName: string;
     score: number;
     reason: string;
+    creatorGroup?: ArtistSegment;
 }
 
 export interface RecommendedTracks {
@@ -15,11 +17,46 @@ export interface RecommendedTracks {
     artistName: string;
     score: number;
     reason: string;
+    creatorGroup?: ArtistSegment;
+}
+
+export interface ExposureCountSummary {
+    emerging: number;
+    established: number;
+}
+
+export interface ExposureQuotaEvaluation {
+    reranked: boolean;
+    quotaSatisfied: boolean;
+    quotaAchievable: boolean;
+    available: ExposureCountSummary;
+    beforeTopN: ExposureCountSummary;
+    afterTopN: ExposureCountSummary;
+}
+
+export interface PrefixFairnessCheckpointSummary {
+    topK: number;
+    minimumExposureByGroup: Partial<Record<ArtistSegment, number>>;
+}
+
+export interface RecommendationFairnessSummary {
+    enabled: boolean;
+    candidatePoolSize: number;
+    topN: number;
+    minimumExposureByGroup: Partial<Record<ArtistSegment, number>>;
+    prefixCheckpoints: PrefixFairnessCheckpointSummary[];
+    creatorGroupThresholds: {
+        emergingMaxAccountAgeDays: number;
+        emergingMaxTotalListens: number;
+    };
+    artists: ExposureQuotaEvaluation;
+    tracks: ExposureQuotaEvaluation;
 }
 
 export interface BaselineRecommendationResult {
     artists: RecommendedArtist[];
     tracks: RecommendedTracks[];
+    fairness?: RecommendationFairnessSummary;
 }
 
 interface ArtistAggregate {

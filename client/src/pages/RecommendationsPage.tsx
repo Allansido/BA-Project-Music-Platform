@@ -42,6 +42,7 @@ function RecommendationsPage() {
     }, []);
 
     const topArtist = recommendations?.artists[0] ?? null;
+    const fairness = recommendations?.fairness;
     const maxArtistScore = useMemo(
         () =>
             Math.max(
@@ -112,6 +113,54 @@ function RecommendationsPage() {
                         </div>
                     </section>
 
+                    {fairness?.enabled ? (
+                        <section className="spotlight-panel">
+                            <div>
+                                <p className="eyebrow">Fairness rule</p>
+                                <h2>
+                                    Prefix fairness for emerging creators
+                                </h2>
+                                <p>
+                                    {fairness.prefixCheckpoints
+                                        .map((checkpoint) => (
+                                            `${checkpoint.minimumExposureByGroup.emerging ?? 0} in top ${checkpoint.topK}`
+                                        ))
+                                        .join(", ")}
+                                </p>
+                                <p>
+                                    Artists: {fairness.artists.afterTopN.emerging} emerging /{" "}
+                                    {fairness.artists.afterTopN.established} established. Tracks:{" "}
+                                    {fairness.tracks.afterTopN.emerging} emerging /{" "}
+                                    {fairness.tracks.afterTopN.established} established.
+                                </p>
+                                <p>
+                                    Fairness re-ranking considers the top{" "}
+                                    {fairness.candidatePoolSize} baseline candidates before
+                                    producing the final top {fairness.topN}.
+                                </p>
+                                {!fairness.artists.quotaAchievable
+                                    || !fairness.tracks.quotaAchievable ? (
+                                    <p>
+                                        The current candidate pool does not contain enough
+                                        emerging items to fully meet the requested quota, so the
+                                        result is shown as best effort.
+                                    </p>
+                                ) : null}
+                            </div>
+                            <div className="score-badge">
+                                <span>Quota status</span>
+                                <strong>
+                                    {fairness.artists.quotaSatisfied && fairness.tracks.quotaSatisfied
+                                        ? "Met"
+                                        : fairness.artists.quotaAchievable
+                                            && fairness.tracks.quotaAchievable
+                                            ? "Not met"
+                                            : "Best effort"}
+                                </strong>
+                            </div>
+                        </section>
+                    ) : null}
+
                     {topArtist ? (
                         <section className="spotlight-panel">
                             <div>
@@ -149,6 +198,11 @@ function RecommendationsPage() {
                                         </span>
                                     </div>
                                     <h3>{artist.artistName}</h3>
+                                    <p className="eyebrow">
+                                        {artist.creatorGroup === "emerging"
+                                            ? "Emerging creator"
+                                            : "Established creator"}
+                                    </p>
                                     <p>{artist.reason}</p>
                                     <div
                                         className="score-bar"
@@ -187,7 +241,12 @@ function RecommendationsPage() {
                                     </span>
                                     <div>
                                         <h3>{track.trackName}</h3>
-                                        <p>{track.artistName}</p>
+                                        <p>
+                                            {track.artistName} ·{" "}
+                                            {track.creatorGroup === "emerging"
+                                                ? "Emerging creator"
+                                                : "Established creator"}
+                                        </p>
                                     </div>
                                     <div className="track-score">
                                         <span>{track.reason}</span>
