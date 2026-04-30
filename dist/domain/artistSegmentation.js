@@ -84,7 +84,7 @@ function compareArtistPopularity(firstArtist, secondArtist) {
 }
 function splitArtistsBySegment(interactions, options = {}) {
     const artistsByKey = new Map();
-    const referenceDate = options.referenceDate ?? new Date();
+    let latestInteractionAt = null;
     const thresholds = {
         emergingMaxAccountAgeDays: getValidThreshold(options.emergingMaxAccountAgeDays, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds.emergingMaxAccountAgeDays),
         emergingMaxTotalListens: getValidThreshold(options.emergingMaxTotalListens, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds.emergingMaxTotalListens)
@@ -115,8 +115,14 @@ function splitArtistsBySegment(interactions, options = {}) {
             stats.tracks.add(trackKey);
         }
         updateDateRange(stats, interaction.timestamp);
+        if (interaction.timestamp &&
+            (!latestInteractionAt || interaction.timestamp > latestInteractionAt)) {
+            latestInteractionAt = interaction.timestamp;
+        }
         artistsByKey.set(artistKey, stats);
     }
+    const referenceDate = options.referenceDate ??
+        (latestInteractionAt ? new Date(latestInteractionAt) : new Date());
     const unsegmentedArtists = [...artistsByKey.values()]
         .map((stats) => toArtistStats(stats, "emerging", referenceDate))
         .sort(compareArtistPopularity);
