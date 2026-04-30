@@ -9,14 +9,19 @@ export interface ArtistDetails {
     location: string;
     bio: string;
     releaseStatus: string;
+    services: string[];
+    collaborationGoal: string;
+    resumeLink: string;
 }
 
 export interface ProducerDetails {
     producerName: string;
+    location: string;
     studioName: string;
     services: string[];
     tools: string;
     collaborationGoal: string;
+    resumeLink: string;
 }
 
 export interface RoleDetails {
