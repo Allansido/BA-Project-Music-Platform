@@ -31,11 +31,25 @@ const producerServices = [
     "Songwriting",
     "Artist development"
 ];
+const artistServices = [
+    "Vocals",
+    "Songwriting",
+    "Toplining",
+    "Live performance",
+    "Guitar",
+    "Keys"
+];
 const releaseStatuses = [
     "Preparing first release",
     "Released music already",
     "Actively performing",
     "Looking for collaborators"
+];
+const artistCollaborationGoals = [
+    "Find producers for my next release",
+    "Pitch for featured vocals",
+    "Join writing sessions",
+    "Build a live set with collaborators"
 ];
 const collaborationGoals = [
     "Find artists to produce",
@@ -75,8 +89,20 @@ function ProfilePage({
     const [artistReleaseStatus, setArtistReleaseStatus] = useState(
         user.roleDetails.artist?.releaseStatus ?? releaseStatuses[0]
     );
+    const [selectedArtistServices, setSelectedArtistServices] = useState<string[]>(
+        user.roleDetails.artist?.services ?? []
+    );
+    const [artistCollaborationGoal, setArtistCollaborationGoal] = useState(
+        user.roleDetails.artist?.collaborationGoal ?? artistCollaborationGoals[0]
+    );
+    const [artistResumeLink, setArtistResumeLink] = useState(
+        user.roleDetails.artist?.resumeLink ?? ""
+    );
     const [producerName, setProducerName] = useState(
         user.roleDetails.producer?.producerName ?? ""
+    );
+    const [producerLocation, setProducerLocation] = useState(
+        user.roleDetails.producer?.location ?? ""
     );
     const [studioName, setStudioName] = useState(
         user.roleDetails.producer?.studioName ?? ""
@@ -89,6 +115,9 @@ function ProfilePage({
     );
     const [producerCollaborationGoal, setProducerCollaborationGoal] = useState(
         user.roleDetails.producer?.collaborationGoal ?? collaborationGoals[0]
+    );
+    const [producerResumeLink, setProducerResumeLink] = useState(
+        user.roleDetails.producer?.resumeLink ?? ""
     );
     const [availableGenres, setAvailableGenres] = useState<string[]>([]);
     const [availableArtists, setAvailableArtists] = useState<OnboardingArtist[]>([]);
@@ -178,6 +207,20 @@ function ProfilePage({
         });
     }
 
+    function toggleArtistService(service: string) {
+        clearFeedback();
+
+        setSelectedArtistServices((currentServices) => {
+            if (currentServices.includes(service)) {
+                return currentServices.filter(
+                    (currentService) => currentService !== service
+                );
+            }
+
+            return [...currentServices, service];
+        });
+    }
+
     const roleSummary = useMemo(() => {
         if (user.role === "artist") {
             return artistName || "Artist profile";
@@ -199,17 +242,22 @@ function ProfilePage({
                     artistName,
                     location: artistLocation,
                     bio: artistBio,
-                    releaseStatus: artistReleaseStatus
+                    releaseStatus: artistReleaseStatus,
+                    services: selectedArtistServices,
+                    collaborationGoal: artistCollaborationGoal,
+                    resumeLink: artistResumeLink
                 }
             };
         } else if (user.role === "producer") {
             roleDetails = {
                 producer: {
                     producerName,
+                    location: producerLocation,
                     studioName,
                     services: selectedProducerServices,
                     tools: producerTools,
-                    collaborationGoal: producerCollaborationGoal
+                    collaborationGoal: producerCollaborationGoal,
+                    resumeLink: producerResumeLink
                 }
             };
         } else {
@@ -480,6 +528,77 @@ function ProfilePage({
                                         placeholder="A few words about your sound"
                                     />
                                 </div>
+
+                                <div className="choice-section">
+                                    <div className="choice-section-heading">
+                                        <label className="form-label">
+                                            Collaboration services
+                                        </label>
+                                        <span>{selectedArtistServices.length} selected</span>
+                                    </div>
+                                    <div className="genre-grid">
+                                        {artistServices.map((service) => (
+                                            <button
+                                                key={service}
+                                                type="button"
+                                                className={`choice-chip ${
+                                                    selectedArtistServices.includes(service)
+                                                        ? "selected"
+                                                        : ""
+                                                }`}
+                                                onClick={() => toggleArtistService(service)}
+                                            >
+                                                {service}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="form-grid two-columns">
+                                    <div className="form-group">
+                                        <label
+                                            className="form-label"
+                                            htmlFor="artist-collaboration-goal"
+                                        >
+                                            Main collaboration goal
+                                        </label>
+                                        <select
+                                            id="artist-collaboration-goal"
+                                            className="form-input"
+                                            value={artistCollaborationGoal}
+                                            onChange={(event) =>
+                                                setArtistCollaborationGoal(
+                                                    event.target.value
+                                                )
+                                            }
+                                        >
+                                            {artistCollaborationGoals.map((goal) => (
+                                                <option key={goal} value={goal}>
+                                                    {goal}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label
+                                            className="form-label"
+                                            htmlFor="artist-resume-link"
+                                        >
+                                            Resume or portfolio link
+                                        </label>
+                                        <input
+                                            id="artist-resume-link"
+                                            className="form-input"
+                                            type="url"
+                                            value={artistResumeLink}
+                                            onChange={(event) =>
+                                                setArtistResumeLink(event.target.value)
+                                            }
+                                            placeholder="Optional"
+                                        />
+                                    </div>
+                                </div>
                             </>
                         ) : null}
 
@@ -498,6 +617,25 @@ function ProfilePage({
                                             onChange={(event) =>
                                                 setProducerName(event.target.value)
                                             }
+                                        />
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label
+                                            className="form-label"
+                                            htmlFor="producer-location"
+                                        >
+                                            Location
+                                        </label>
+                                        <input
+                                            id="producer-location"
+                                            className="form-input"
+                                            type="text"
+                                            value={producerLocation}
+                                            onChange={(event) =>
+                                                setProducerLocation(event.target.value)
+                                            }
+                                            placeholder="City or remote"
                                         />
                                     </div>
 
@@ -578,6 +716,25 @@ function ProfilePage({
                                             ))}
                                         </select>
                                     </div>
+                                </div>
+
+                                <div className="form-group">
+                                    <label
+                                        className="form-label"
+                                        htmlFor="producer-resume-link"
+                                    >
+                                        Resume or portfolio link
+                                    </label>
+                                    <input
+                                        id="producer-resume-link"
+                                        className="form-input"
+                                        type="url"
+                                        value={producerResumeLink}
+                                        onChange={(event) =>
+                                            setProducerResumeLink(event.target.value)
+                                        }
+                                        placeholder="Optional"
+                                    />
                                 </div>
                             </>
                         ) : null}
