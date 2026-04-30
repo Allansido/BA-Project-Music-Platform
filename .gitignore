@@ -16,3 +16,5 @@ dataset/raw/*
 dataset/processed/*
 !dataset/raw/.gitkeep
 !dataset/processed/.gitkeep
+!dataset/processed/artistTags.json
+!dataset/processed/artistSegments.json

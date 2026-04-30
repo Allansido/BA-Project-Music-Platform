@@ -4,8 +4,8 @@ exports.DEFAULT_FAIRNESS_CONFIG = void 0;
 exports.DEFAULT_FAIRNESS_CONFIG = {
     enabled: true,
     creatorGroupThresholds: {
-        emergingMaxAccountAgeDays: 7550,
-        emergingMaxTotalListens: 6500
+        emergingMaxAccountAgeDays: 730,
+        emergingMaxTotalListens: 500
     },
     exposureQuotaRule: {
         topN: 10,
@@ -33,5 +33,5 @@ exports.DEFAULT_FAIRNESS_CONFIG = {
             }
         ]
     },
-    candidatePoolSize: 50
+    candidatePoolSize: 5000
 };

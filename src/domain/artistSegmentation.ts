@@ -181,7 +181,7 @@ export function splitArtistsBySegment(
     options: ArtistSegmentationOptions = {}
 ): ArtistSegmentationResult {
     const artistsByKey = new Map<string, MutableArtistStats>();
-    const referenceDate = options.referenceDate ?? new Date();
+    let latestInteractionAt: string | null = null;
     const thresholds = {
         emergingMaxAccountAgeDays: getValidThreshold(
             options.emergingMaxAccountAgeDays,
@@ -227,8 +227,20 @@ export function splitArtistsBySegment(
         }
 
         updateDateRange(stats, interaction.timestamp);
+
+        if (
+            interaction.timestamp &&
+            (!latestInteractionAt || interaction.timestamp > latestInteractionAt)
+        ) {
+            latestInteractionAt = interaction.timestamp;
+        }
+
         artistsByKey.set(artistKey, stats);
     }
+
+    const referenceDate =
+        options.referenceDate ??
+        (latestInteractionAt ? new Date(latestInteractionAt) : new Date());
 
     const unsegmentedArtists = [...artistsByKey.values()]
         .map((stats) => toArtistStats(stats, "emerging", referenceDate))

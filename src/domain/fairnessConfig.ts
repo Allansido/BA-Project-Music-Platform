@@ -26,8 +26,8 @@ export interface FairnessConfig {
 export const DEFAULT_FAIRNESS_CONFIG: FairnessConfig = {
     enabled: true,
     creatorGroupThresholds: {
-        emergingMaxAccountAgeDays: 7550,
-        emergingMaxTotalListens: 6500
+        emergingMaxAccountAgeDays: 730,
+        emergingMaxTotalListens: 500
     },
     exposureQuotaRule: {
         topN: 10,
@@ -55,5 +55,5 @@ export const DEFAULT_FAIRNESS_CONFIG: FairnessConfig = {
             }
         ]
     },
-    candidatePoolSize: 50
+    candidatePoolSize: 5000
 };
