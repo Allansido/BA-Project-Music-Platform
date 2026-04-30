@@ -35,6 +35,85 @@ connection string points at the Docker database:
 postgres://music_platform:music_platform@localhost:5433/music_platform
 ```
 
-The Last.fm dataset can stay in the local `dataset/` directory. It is ignored by
-Git and remains separate from the auth database, so large raw or processed
-dataset files do not get mixed into account storage.
+## Last.fm 1K dataset
+
+This project expects the Last.fm 1K listening-history file in `dataset/raw/`.
+The raw dataset is not committed because it is large, but the processed
+`artistTags.json` and `artistSegments.json` files can be committed through Git
+LFS.
+
+1. Download the Last.fm 1K dataset from the official dataset page:
+
+   [Last.fm Dataset - 1K users](http://ocelma.net/MusicRecommendationDataset/lastfm-1K.html)
+
+2. Extract the downloaded archive. Inside it, find this file:
+
+   ```txt
+   userid-timestamp-artid-artname-traid-traname.tsv
+   ```
+
+3. Copy that file into the raw dataset folder:
+
+   ```txt
+   dataset/raw/userid-timestamp-artid-artname-traid-traname.tsv
+   ```
+
+4. Convert the raw TSV listening history into processed JSON:
+
+   ```sh
+   npm run lastfm:import
+   ```
+
+   This creates:
+
+   ```txt
+   dataset/processed/interactions.json
+   ```
+
+   `interactions.json` is ignored by Git because it is very large and can be
+   regenerated from the raw TSV file.
+
+5. Generate artist segment metadata:
+
+   ```sh
+   npm run artists:split
+   ```
+
+   This creates:
+
+   ```txt
+   dataset/processed/artistSegments.json
+   ```
+
+6. If you need Last.fm artist tags for genre-based recommendations, add your
+   Last.fm API key to `.env`:
+
+   ```env
+   LASTFM_API_KEY=your-real-lastfm-api-key
+   ```
+
+   Then fetch artist tags:
+
+   ```sh
+   npm run lastfm:tags
+   ```
+
+   This creates or updates:
+
+   ```txt
+   dataset/processed/artistTags.json
+   ```
+
+   For faster tag fetching, you can tune the Last.fm fetcher:
+
+   ```sh
+   LASTFM_CONCURRENCY=2 LASTFM_REQUEST_DELAY_MS=500 npm run lastfm:tags
+   ```
+
+   On PowerShell, set those variables like this:
+
+   ```powershell
+   $env:LASTFM_CONCURRENCY="2"
+   $env:LASTFM_REQUEST_DELAY_MS="500"
+   npm run lastfm:tags
+   ```

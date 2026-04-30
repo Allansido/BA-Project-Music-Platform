@@ -6,8 +6,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getRecommendationsForUser = getRecommendationsForUser;
 const fs_1 = __importDefault(require("fs"));
 const readline_1 = __importDefault(require("readline"));
+const fairnessRecommender_1 = require("../data/recommendation_modules/fairnessRecommender");
+const artistSegmentation_1 = require("./artistSegmentation");
 const authService_1 = require("./auth/authService");
+const fairnessConfig_1 = require("./fairnessConfig");
+const artistTagMapping_1 = require("./artistTagMapping");
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
+const ARTIST_TAGS_PATH = "dataset/processed/artistTags.json";
+const RECOMMENDATION_WEIGHTS = {
+    genre: 0.5,
+    goal: 0.25,
+    history: 0.15,
+    popularity: 0.1
+};
 let cachedIndex = null;
 let cachedIndexPromise = null;
 function normalizeText(value) {
@@ -20,6 +31,37 @@ function getTrackKey(trackId, artistName, trackName) {
     return (normalizeText(trackId) ||
         `${normalizeText(artistName)}::${normalizeText(trackName)}`);
 }
+function normalizeGenreKey(genre) {
+    return normalizeText(genre).toLowerCase();
+}
+function loadArtistGenres() {
+    const artistGenres = new Map();
+    if (!fs_1.default.existsSync(ARTIST_TAGS_PATH)) {
+        return artistGenres;
+    }
+    let tagIndex;
+    try {
+        tagIndex = JSON.parse(fs_1.default.readFileSync(ARTIST_TAGS_PATH, "utf8"));
+    }
+    catch (error) {
+        console.warn(`Could not load ${ARTIST_TAGS_PATH}. Recommendations will ignore artist tags.`, error);
+        return artistGenres;
+    }
+    for (const [artistKey, record] of Object.entries(tagIndex)) {
+        const datasetArtistKey = getArtistPreferenceKey(artistKey);
+        const genres = record.genres?.length > 0
+            ? record.genres
+            : (0, artistTagMapping_1.mapLastFmTagsToGenres)(record.tags ?? []);
+        if (datasetArtistKey && genres.length > 0) {
+            artistGenres.set(datasetArtistKey, genres);
+            const correctedArtistKey = getArtistPreferenceKey(record.artistName);
+            if (correctedArtistKey) {
+                artistGenres.set(correctedArtistKey, genres);
+            }
+        }
+    }
+    return artistGenres;
+}
 function parseInteractionLine(line) {
     const trimmedLine = line.trim();
     if (!trimmedLine || trimmedLine === "[" || trimmedLine === "]") {
@@ -29,6 +71,20 @@ function parseInteractionLine(line) {
         ? trimmedLine.slice(0, -1)
         : trimmedLine;
     return JSON.parse(normalizedLine);
+}
+function updateDateRange(aggregate, timestamp) {
+    const normalizedTimestamp = normalizeText(timestamp);
+    if (!normalizedTimestamp) {
+        return;
+    }
+    if (!aggregate.firstListenedAt
+        || normalizedTimestamp < aggregate.firstListenedAt) {
+        aggregate.firstListenedAt = normalizedTimestamp;
+    }
+    if (!aggregate.lastListenedAt
+        || normalizedTimestamp > aggregate.lastListenedAt) {
+        aggregate.lastListenedAt = normalizedTimestamp;
+    }
 }
 async function streamInteractions(onInteraction) {
     if (!fs_1.default.existsSync(INTERACTIONS_PATH)) {
@@ -62,8 +118,12 @@ async function buildRecommendationIndex() {
         artistsByUser: new Map(),
         tracksByUser: new Map(),
         popularArtists: new Map(),
-        popularTracks: new Map()
+        popularTracks: new Map(),
+        artistGroups: new Map(),
+        artistGenres: loadArtistGenres()
     };
+    const artistGroupAggregates = new Map();
+    let latestInteractionAt = null;
     await streamInteractions((interaction) => {
         const userId = normalizeText(interaction.userId);
         const artistName = normalizeText(interaction.artistName);
@@ -99,6 +159,24 @@ async function buildRecommendationIndex() {
             currentPopularArtist.artistId = artistId;
         }
         index.popularArtists.set(artistPreferenceKey, currentPopularArtist);
+        const currentArtistGroupAggregate = artistGroupAggregates.get(artistPreferenceKey) ??
+            {
+                artistId,
+                artistName,
+                playCount: 0,
+                firstListenedAt: null,
+                lastListenedAt: null
+            };
+        currentArtistGroupAggregate.playCount += 1;
+        if (!currentArtistGroupAggregate.artistId) {
+            currentArtistGroupAggregate.artistId = artistId;
+        }
+        updateDateRange(currentArtistGroupAggregate, interaction.timestamp);
+        if (interaction.timestamp &&
+            (!latestInteractionAt || interaction.timestamp > latestInteractionAt)) {
+            latestInteractionAt = interaction.timestamp;
+        }
+        artistGroupAggregates.set(artistPreferenceKey, currentArtistGroupAggregate);
         const trackName = normalizeText(interaction.trackName);
         const trackId = normalizeText(interaction.trackId) || null;
         const trackKey = getTrackKey(interaction.trackId, interaction.artistName, interaction.trackName);
@@ -140,6 +218,15 @@ async function buildRecommendationIndex() {
         }
         index.popularTracks.set(trackKey, currentPopularTrack);
     });
+    const referenceDate = latestInteractionAt
+        ? new Date(latestInteractionAt)
+        : new Date();
+    for (const [artistPreferenceKey, artist] of artistGroupAggregates) {
+        index.artistGroups.set(artistPreferenceKey, (0, artistSegmentation_1.classifyArtistSegment)(artist, {
+            ...fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds,
+            referenceDate
+        }));
+    }
     return index;
 }
 async function getRecommendationIndex() {
@@ -177,46 +264,10 @@ function scoreNeighbors(userArtistProfiles, targetArtistKeys) {
     }
     return neighbors;
 }
-function getPopularityFallbackRecommendations(index, limit, excludedArtistKeys) {
-    const artists = [...index.popularArtists.entries()]
-        .filter(([artistKey]) => !excludedArtistKeys.has(artistKey))
-        .map(([, artist]) => artist)
-        .sort((firstArtist, secondArtist) => secondArtist.playCount - firstArtist.playCount)
-        .slice(0, limit)
-        .map((artist) => ({
-        artistId: artist.artistId,
-        artistName: artist.artistName,
-        score: artist.playCount,
-        reason: "Popular among listeners on the platform"
-    }));
-    const tracks = [...index.popularTracks.values()]
-        .filter((track) => {
-        const artistKey = getArtistPreferenceKey(track.artistName);
-        return Boolean(artistKey) && !excludedArtistKeys.has(artistKey);
-    })
-        .sort((firstTrack, secondTrack) => secondTrack.playCount - firstTrack.playCount)
-        .slice(0, limit)
-        .map((track) => ({
-        trackId: track.trackId,
-        trackName: track.trackName,
-        artistId: track.artistId,
-        artistName: track.artistName,
-        score: track.playCount,
-        reason: "Popular among listeners on the platform"
-    }));
-    return { artists, tracks };
-}
-function getPreferenceBasedRecommendations(index, user, limit) {
-    const targetArtistKeys = getUserProfileArtistKeys(user);
-    if (targetArtistKeys.size === 0) {
-        return getPopularityFallbackRecommendations(index, limit, targetArtistKeys);
-    }
-    const neighbors = scoreNeighbors(index.userArtistProfiles, targetArtistKeys);
-    if (neighbors.size === 0) {
-        return getPopularityFallbackRecommendations(index, limit, targetArtistKeys);
-    }
+function getCollaborativeScores(index, targetArtistKeys) {
     const artistScores = new Map();
     const trackScores = new Map();
+    const neighbors = scoreNeighbors(index.userArtistProfiles, targetArtistKeys);
     for (const [userId, similarity] of neighbors) {
         const userArtists = index.artistsByUser.get(userId);
         if (userArtists) {
@@ -258,30 +309,202 @@ function getPreferenceBasedRecommendations(index, user, limit) {
             }
         }
     }
-    const artists = [...artistScores.values()]
-        .sort((firstArtist, secondArtist) => secondArtist.score - firstArtist.score)
+    return { artistScores, trackScores };
+}
+function getUserGenreKeys(user) {
+    return new Set(user.genres.map((genre) => normalizeGenreKey(genre)));
+}
+function normalizeComponentScore(value, maxValue) {
+    if (!Number.isFinite(value) || !Number.isFinite(maxValue) || maxValue <= 0) {
+        return 0;
+    }
+    return Math.min(1, Math.max(0, value / maxValue));
+}
+function getMaxValue(values, getValue) {
+    let maxValue = 0;
+    for (const value of values) {
+        const numericValue = getValue(value);
+        if (Number.isFinite(numericValue) && numericValue > maxValue) {
+            maxValue = numericValue;
+        }
+    }
+    return maxValue;
+}
+function getArtistGenreMatch(index, artistKey, userGenreKeys) {
+    if (userGenreKeys.size === 0) {
+        return { score: 0, genres: [] };
+    }
+    const artistGenres = index.artistGenres.get(artistKey) ?? [];
+    let totalMatchScore = 0;
+    const matchedGenres = new Set();
+    for (const artistGenre of artistGenres) {
+        if (userGenreKeys.has(normalizeGenreKey(artistGenre.genre))) {
+            totalMatchScore += artistGenre.score;
+            matchedGenres.add(artistGenre.genre);
+        }
+    }
+    return {
+        score: Math.min(1, totalMatchScore / userGenreKeys.size),
+        genres: [...matchedGenres].sort()
+    };
+}
+function getListenerGoalScore(index, artistKey, listenerGoal, genreMatchScore) {
+    const normalizedGoal = normalizeText(listenerGoal).toLowerCase();
+    if (!normalizedGoal) {
+        return 0;
+    }
+    if (normalizedGoal.includes("outside")) {
+        const hasKnownGenres = (index.artistGenres.get(artistKey)?.length ?? 0) > 0;
+        return hasKnownGenres ? 1 - genreMatchScore : 0;
+    }
+    if (normalizedGoal.includes("local")) {
+        return index.artistGroups.get(artistKey) === "emerging" ? 1 : 0.25;
+    }
+    if (normalizedGoal.includes("favorite") ||
+        normalizedGoal.includes("recommend")) {
+        return genreMatchScore;
+    }
+    return genreMatchScore;
+}
+function getRecommendationReason(input) {
+    const reasons = [];
+    if (input.genreMatchScore > 0) {
+        const matchedGenreText = input.matchedGenres.length > 0
+            ? ` (${input.matchedGenres.join(", ")})`
+            : "";
+        reasons.push(`Matches your selected genres${matchedGenreText}`);
+    }
+    if (input.goalScore > 0 && normalizeText(input.listenerGoal)) {
+        reasons.push("Supports your discovery goal");
+    }
+    if (input.supportingNeighbors > 0) {
+        const verb = input.type === "track" ? "played" : "heard";
+        reasons.push(`${verb} by ${input.supportingNeighbors} similar listeners`);
+    }
+    return reasons.length > 0
+        ? reasons.join(", ")
+        : "Popular among listeners on the platform";
+}
+function toHybridScore(input) {
+    return (RECOMMENDATION_WEIGHTS.genre * input.genreMatchScore +
+        RECOMMENDATION_WEIGHTS.goal * input.goalScore +
+        RECOMMENDATION_WEIGHTS.history * input.historyScore +
+        RECOMMENDATION_WEIGHTS.popularity * input.popularityScore);
+}
+function getPreferenceBasedRecommendations(index, user, limit) {
+    const targetArtistKeys = getUserProfileArtistKeys(user);
+    const userGenreKeys = getUserGenreKeys(user);
+    const listenerGoal = user.roleDetails.listener?.discoveryGoal ?? "";
+    const { artistScores, trackScores } = getCollaborativeScores(index, targetArtistKeys);
+    const maxArtistHistoryScore = getMaxValue(artistScores.values(), (artist) => artist.score);
+    const maxTrackHistoryScore = getMaxValue(trackScores.values(), (track) => track.score);
+    const maxArtistPopularity = getMaxValue(index.popularArtists.values(), (artist) => artist.playCount);
+    const maxTrackPopularity = getMaxValue(index.popularTracks.values(), (track) => track.playCount);
+    const artistCandidates = [...index.popularArtists.entries()]
+        .filter(([artistKey]) => !targetArtistKeys.has(artistKey))
+        .map(([artistKey, artist]) => {
+        const history = artistScores.get(artistKey);
+        const genreMatch = getArtistGenreMatch(index, artistKey, userGenreKeys);
+        const goalScore = getListenerGoalScore(index, artistKey, listenerGoal, genreMatch.score);
+        const historyScore = normalizeComponentScore(history?.score ?? 0, maxArtistHistoryScore);
+        const popularityScore = normalizeComponentScore(artist.playCount, maxArtistPopularity);
+        const hybridScore = toHybridScore({
+            genreMatchScore: genreMatch.score,
+            goalScore,
+            historyScore,
+            popularityScore
+        });
+        return {
+            artistId: artist.artistId,
+            artistName: artist.artistName,
+            score: Number((hybridScore * 100).toFixed(2)),
+            reason: getRecommendationReason({
+                genreMatchScore: genreMatch.score,
+                matchedGenres: genreMatch.genres,
+                goalScore,
+                listenerGoal,
+                supportingNeighbors: history?.supportingNeighbors ?? 0,
+                type: "artist"
+            }),
+            hybridScore,
+            playCount: artist.playCount
+        };
+    })
+        .sort((firstArtist, secondArtist) => secondArtist.hybridScore - firstArtist.hybridScore ||
+        secondArtist.playCount - firstArtist.playCount ||
+        firstArtist.artistName.localeCompare(secondArtist.artistName))
         .slice(0, limit)
         .map((artist) => ({
         artistId: artist.artistId,
         artistName: artist.artistName,
-        score: Number(artist.score.toFixed(2)),
-        reason: `Heard by ${artist.supportingNeighbors} similar listeners`
+        score: artist.score,
+        reason: artist.reason
     }));
-    const tracks = [...trackScores.values()]
-        .sort((firstTrack, secondTrack) => secondTrack.score - firstTrack.score)
+    const trackCandidates = [...index.popularTracks.entries()]
+        .filter(([, track]) => {
+        const artistKey = getArtistPreferenceKey(track.artistName);
+        return Boolean(artistKey) && !targetArtistKeys.has(artistKey);
+    })
+        .map(([trackKey, track]) => {
+        const artistKey = getArtistPreferenceKey(track.artistName);
+        const history = trackScores.get(trackKey);
+        const genreMatch = getArtistGenreMatch(index, artistKey, userGenreKeys);
+        const goalScore = getListenerGoalScore(index, artistKey, listenerGoal, genreMatch.score);
+        const historyScore = normalizeComponentScore(history?.score ?? 0, maxTrackHistoryScore);
+        const popularityScore = normalizeComponentScore(track.playCount, maxTrackPopularity);
+        const hybridScore = toHybridScore({
+            genreMatchScore: genreMatch.score,
+            goalScore,
+            historyScore,
+            popularityScore
+        });
+        return {
+            trackId: track.trackId,
+            trackName: track.trackName,
+            artistId: track.artistId,
+            artistName: track.artistName,
+            score: Number((hybridScore * 100).toFixed(2)),
+            reason: getRecommendationReason({
+                genreMatchScore: genreMatch.score,
+                matchedGenres: genreMatch.genres,
+                goalScore,
+                listenerGoal,
+                supportingNeighbors: history?.supportingNeighbors ?? 0,
+                type: "track"
+            }),
+            hybridScore,
+            playCount: track.playCount
+        };
+    })
+        .sort((firstTrack, secondTrack) => secondTrack.hybridScore - firstTrack.hybridScore ||
+        secondTrack.playCount - firstTrack.playCount ||
+        firstTrack.trackName.localeCompare(secondTrack.trackName))
         .slice(0, limit)
         .map((track) => ({
         trackId: track.trackId,
         trackName: track.trackName,
         artistId: track.artistId,
         artistName: track.artistName,
-        score: Number(track.score.toFixed(2)),
-        reason: `Played by ${track.supportingNeighbors} similar listeners`
+        score: track.score,
+        reason: track.reason
     }));
-    if (artists.length === 0 && tracks.length === 0) {
-        return getPopularityFallbackRecommendations(index, limit, targetArtistKeys);
-    }
-    return { artists, tracks };
+    return { artists: artistCandidates, tracks: trackCandidates };
+}
+function getCreatorGroupForArtist(artistName, index) {
+    const artistPreferenceKey = getArtistPreferenceKey(artistName);
+    return index.artistGroups.get(artistPreferenceKey) ?? "established";
+}
+function attachCreatorGroups(recommendations, index) {
+    return {
+        artists: recommendations.artists.map((artist) => ({
+            ...artist,
+            creatorGroup: getCreatorGroupForArtist(artist.artistName, index)
+        })),
+        tracks: recommendations.tracks.map((track) => ({
+            ...track,
+            creatorGroup: getCreatorGroupForArtist(track.artistName, index)
+        }))
+    };
 }
 async function getRecommendationsForUser(userId, limit = 10) {
     const user = await (0, authService_1.getSafeUserById)(userId);
@@ -289,5 +512,23 @@ async function getRecommendationsForUser(userId, limit = 10) {
         throw new Error("Could not load the signed-in user profile.");
     }
     const index = await getRecommendationIndex();
-    return getPreferenceBasedRecommendations(index, user, limit);
+    const candidatePoolSize = Math.max(limit, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.candidatePoolSize, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN);
+    const baselineRecommendations = getPreferenceBasedRecommendations(index, user, candidatePoolSize);
+    const recommendationsWithGroups = attachCreatorGroups(baselineRecommendations, index);
+    const artistQuotaResult = (0, fairnessRecommender_1.applyExposureQuotaToArtists)(recommendationsWithGroups.artists, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule);
+    const trackQuotaResult = (0, fairnessRecommender_1.applyExposureQuotaToTracks)(recommendationsWithGroups.tracks, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule);
+    return {
+        artists: artistQuotaResult.artists.slice(0, limit),
+        tracks: trackQuotaResult.tracks.slice(0, limit),
+        fairness: {
+            enabled: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.enabled,
+            candidatePoolSize,
+            topN: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN,
+            minimumExposureByGroup: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.minimumExposureByGroup,
+            prefixCheckpoints: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.prefixCheckpoints,
+            creatorGroupThresholds: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.creatorGroupThresholds,
+            artists: artistQuotaResult.evaluation,
+            tracks: trackQuotaResult.evaluation
+        }
+    };
 }
