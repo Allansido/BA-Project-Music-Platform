@@ -47,7 +47,7 @@ type TrackAggregate = {
     playCount: number;
 };
 
-type RecommendationIndex = {
+export type RecommendationIndex = {
     userArtistProfiles: Map<string, Set<string>>;
     artistsByUser: Map<string, Map<string, ArtistAggregate>>;
     tracksByUser: Map<string, Map<string, TrackAggregate>>;
@@ -80,6 +80,11 @@ type ArtistGroupAggregate = {
     firstListenedAt: string | null;
     lastListenedAt: string | null;
 };
+
+export interface RecommendationGenerationOptions {
+    applyFairness?: boolean;
+    candidatePoolSize?: number;
+}
 
 let cachedIndex: RecommendationIndex | null = null;
 let cachedIndexPromise: Promise<RecommendationIndex> | null = null;
@@ -222,6 +227,19 @@ function getUserProfileArtistKeys(user: SafeUser): Set<string> {
 }
 
 async function buildRecommendationIndex(): Promise<RecommendationIndex> {
+    const interactions: Interaction[] = [];
+
+    await streamInteractions((interaction) => {
+        interactions.push(interaction);
+    });
+
+    return createRecommendationIndex(interactions);
+}
+
+export function createRecommendationIndex(
+    interactions: Iterable<Interaction>,
+    artistGenres: Map<string, ArtistGenreScore[]> = loadArtistGenres()
+): RecommendationIndex {
     const index: RecommendationIndex = {
         userArtistProfiles: new Map<string, Set<string>>(),
         artistsByUser: new Map<string, Map<string, ArtistAggregate>>(),
@@ -229,19 +247,19 @@ async function buildRecommendationIndex(): Promise<RecommendationIndex> {
         popularArtists: new Map<string, ArtistAggregate>(),
         popularTracks: new Map<string, TrackAggregate>(),
         artistGroups: new Map<string, ArtistSegment>(),
-        artistGenres: loadArtistGenres()
+        artistGenres
     };
     const artistGroupAggregates = new Map<string, ArtistGroupAggregate>();
     let latestInteractionAt: string | null = null;
 
-    await streamInteractions((interaction) => {
+    for (const interaction of interactions) {
         const userId = normalizeText(interaction.userId);
         const artistName = normalizeText(interaction.artistName);
         const artistId = normalizeText(interaction.artistId) || null;
         const artistPreferenceKey = getArtistPreferenceKey(interaction.artistName);
 
         if (!userId || !artistPreferenceKey || !artistName) {
-            return;
+            continue;
         }
 
         const artistProfile =
@@ -314,7 +332,7 @@ async function buildRecommendationIndex(): Promise<RecommendationIndex> {
         );
 
         if (!trackKey || !trackName || (trackId == null && artistId == null)) {
-            return;
+            continue;
         }
 
         const userTracks =
@@ -355,7 +373,7 @@ async function buildRecommendationIndex(): Promise<RecommendationIndex> {
             currentPopularTrack.artistId = artistId;
         }
         index.popularTracks.set(trackKey, currentPopularTrack);
-    });
+    }
 
     const referenceDate = latestInteractionAt
         ? new Date(latestInteractionAt)
@@ -809,21 +827,18 @@ function attachCreatorGroups(
     };
 }
 
-export async function getRecommendationsForUser(
-    userId: string,
-    limit = 10
-): Promise<BaselineRecommendationResult> {
-    const user = await getSafeUserById(userId);
-
-    if (!user) {
-        throw new Error("Could not load the signed-in user profile.");
-    }
-
-    const index = await getRecommendationIndex();
+export function getRecommendationsForProfile(
+    user: SafeUser,
+    limit = 10,
+    index: RecommendationIndex,
+    options: RecommendationGenerationOptions = {}
+): BaselineRecommendationResult {
+    const applyFairness = options.applyFairness ?? DEFAULT_FAIRNESS_CONFIG.enabled;
     const candidatePoolSize = Math.max(
         limit,
-        DEFAULT_FAIRNESS_CONFIG.candidatePoolSize,
-        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN
+        options.candidatePoolSize ?? 0,
+        applyFairness ? DEFAULT_FAIRNESS_CONFIG.candidatePoolSize : 0,
+        applyFairness ? DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN : 0
     );
     const baselineRecommendations = getPreferenceBasedRecommendations(
         index,
@@ -834,6 +849,14 @@ export async function getRecommendationsForUser(
         baselineRecommendations,
         index
     );
+
+    if (!applyFairness) {
+        return {
+            artists: recommendationsWithGroups.artists.slice(0, limit),
+            tracks: recommendationsWithGroups.tracks.slice(0, limit)
+        };
+    }
+
     const artistQuotaResult = applyExposureQuotaToArtists(
         recommendationsWithGroups.artists,
         DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
@@ -847,7 +870,7 @@ export async function getRecommendationsForUser(
         artists: artistQuotaResult.artists.slice(0, limit),
         tracks: trackQuotaResult.tracks.slice(0, limit),
         fairness: {
-            enabled: DEFAULT_FAIRNESS_CONFIG.enabled,
+            enabled: applyFairness,
             candidatePoolSize,
             topN: DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN,
             minimumExposureByGroup:
@@ -860,4 +883,25 @@ export async function getRecommendationsForUser(
             tracks: trackQuotaResult.evaluation
         }
     };
+}
+
+export async function getRecommendationsForUser(
+    userId: string,
+    limit = 10
+): Promise<BaselineRecommendationResult> {
+    const user = await getSafeUserById(userId);
+
+    if (!user) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+
+    const index = await getRecommendationIndex();
+    return getRecommendationsForProfile(
+        user,
+        limit,
+        index,
+        {
+            applyFairness: DEFAULT_FAIRNESS_CONFIG.enabled
+        }
+    );
 }
