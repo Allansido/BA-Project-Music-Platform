@@ -3,6 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createRecommendationIndex = createRecommendationIndex;
+exports.getRecommendationsForProfile = getRecommendationsForProfile;
 exports.getRecommendationsForUser = getRecommendationsForUser;
 const fs_1 = __importDefault(require("fs"));
 const readline_1 = __importDefault(require("readline"));
@@ -113,6 +115,13 @@ function getUserProfileArtistKeys(user) {
         .filter(Boolean));
 }
 async function buildRecommendationIndex() {
+    const interactions = [];
+    await streamInteractions((interaction) => {
+        interactions.push(interaction);
+    });
+    return createRecommendationIndex(interactions);
+}
+function createRecommendationIndex(interactions, artistGenres = loadArtistGenres()) {
     const index = {
         userArtistProfiles: new Map(),
         artistsByUser: new Map(),
@@ -120,17 +129,17 @@ async function buildRecommendationIndex() {
         popularArtists: new Map(),
         popularTracks: new Map(),
         artistGroups: new Map(),
-        artistGenres: loadArtistGenres()
+        artistGenres
     };
     const artistGroupAggregates = new Map();
     let latestInteractionAt = null;
-    await streamInteractions((interaction) => {
+    for (const interaction of interactions) {
         const userId = normalizeText(interaction.userId);
         const artistName = normalizeText(interaction.artistName);
         const artistId = normalizeText(interaction.artistId) || null;
         const artistPreferenceKey = getArtistPreferenceKey(interaction.artistName);
         if (!userId || !artistPreferenceKey || !artistName) {
-            return;
+            continue;
         }
         const artistProfile = index.userArtistProfiles.get(userId) ?? new Set();
         artistProfile.add(artistPreferenceKey);
@@ -181,7 +190,7 @@ async function buildRecommendationIndex() {
         const trackId = normalizeText(interaction.trackId) || null;
         const trackKey = getTrackKey(interaction.trackId, interaction.artistName, interaction.trackName);
         if (!trackKey || !trackName || (trackId == null && artistId == null)) {
-            return;
+            continue;
         }
         const userTracks = index.tracksByUser.get(userId) ?? new Map();
         const currentUserTrack = userTracks.get(trackKey) ??
@@ -217,7 +226,7 @@ async function buildRecommendationIndex() {
             currentPopularTrack.artistId = artistId;
         }
         index.popularTracks.set(trackKey, currentPopularTrack);
-    });
+    }
     const referenceDate = latestInteractionAt
         ? new Date(latestInteractionAt)
         : new Date();
@@ -506,22 +515,24 @@ function attachCreatorGroups(recommendations, index) {
         }))
     };
 }
-async function getRecommendationsForUser(userId, limit = 10) {
-    const user = await (0, authService_1.getSafeUserById)(userId);
-    if (!user) {
-        throw new Error("Could not load the signed-in user profile.");
-    }
-    const index = await getRecommendationIndex();
-    const candidatePoolSize = Math.max(limit, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.candidatePoolSize, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN);
+function getRecommendationsForProfile(user, limit = 10, index, options = {}) {
+    const applyFairness = options.applyFairness ?? fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.enabled;
+    const candidatePoolSize = Math.max(limit, options.candidatePoolSize ?? 0, applyFairness ? fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.candidatePoolSize : 0, applyFairness ? fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN : 0);
     const baselineRecommendations = getPreferenceBasedRecommendations(index, user, candidatePoolSize);
     const recommendationsWithGroups = attachCreatorGroups(baselineRecommendations, index);
+    if (!applyFairness) {
+        return {
+            artists: recommendationsWithGroups.artists.slice(0, limit),
+            tracks: recommendationsWithGroups.tracks.slice(0, limit)
+        };
+    }
     const artistQuotaResult = (0, fairnessRecommender_1.applyExposureQuotaToArtists)(recommendationsWithGroups.artists, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule);
     const trackQuotaResult = (0, fairnessRecommender_1.applyExposureQuotaToTracks)(recommendationsWithGroups.tracks, fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule);
     return {
         artists: artistQuotaResult.artists.slice(0, limit),
         tracks: trackQuotaResult.tracks.slice(0, limit),
         fairness: {
-            enabled: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.enabled,
+            enabled: applyFairness,
             candidatePoolSize,
             topN: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN,
             minimumExposureByGroup: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.minimumExposureByGroup,
@@ -531,4 +542,14 @@ async function getRecommendationsForUser(userId, limit = 10) {
             tracks: trackQuotaResult.evaluation
         }
     };
+}
+async function getRecommendationsForUser(userId, limit = 10) {
+    const user = await (0, authService_1.getSafeUserById)(userId);
+    if (!user) {
+        throw new Error("Could not load the signed-in user profile.");
+    }
+    const index = await getRecommendationIndex();
+    return getRecommendationsForProfile(user, limit, index, {
+        applyFairness: fairnessConfig_1.DEFAULT_FAIRNESS_CONFIG.enabled
+    });
 }
