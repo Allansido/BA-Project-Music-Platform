@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { trackInteraction } from "../api/analyticsApi";
 import { getRecommendations } from "../api/recommendationApi";
 import MusicLogo from "../components/MusicLogo";
-import type { RecommendationResult } from "../types/recommendations";
+import type { AnalyticsEventType } from "../types/analytics";
+import type {
+    RecommendationResult,
+    RecommendedArtist,
+    RecommendedTrack
+} from "../types/recommendations";
 
 function getScorePercent(score: number, maxScore: number): string {
     if (maxScore <= 0) {
@@ -59,6 +65,30 @@ function RecommendationsPage() {
             ),
         [recommendations]
     );
+
+    function trackArtistClick(artist: RecommendedArtist) {
+        trackInteraction({
+            eventType: "click",
+            itemType: "artist",
+            itemId: artist.artistId,
+            itemName: artist.artistName,
+            context: "recommendations"
+        });
+    }
+
+    function trackTrackAction(
+        eventType: AnalyticsEventType,
+        track: RecommendedTrack
+    ) {
+        trackInteraction({
+            eventType,
+            itemType: "track",
+            itemId: track.trackId,
+            itemName: track.trackName,
+            artistName: track.artistName,
+            context: "recommendations"
+        });
+    }
 
     return (
         <main className="recommendations-page">
@@ -217,6 +247,14 @@ function RecommendationsPage() {
                                             }}
                                         />
                                     </div>
+                                    <div className="interaction-actions">
+                                        <button
+                                            type="button"
+                                            onClick={() => trackArtistClick(artist)}
+                                        >
+                                            Open
+                                        </button>
+                                    </div>
                                 </article>
                             ))}
                         </div>
@@ -262,6 +300,32 @@ function RecommendationsPage() {
                                                     )
                                                 }}
                                             />
+                                        </div>
+                                        <div className="interaction-actions compact">
+                                            <button
+                                                type="button"
+                                                onClick={() => trackTrackAction("play", track)}
+                                            >
+                                                Play
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => trackTrackAction("skip", track)}
+                                            >
+                                                Skip
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => trackTrackAction("like", track)}
+                                            >
+                                                Like
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => trackTrackAction("save", track)}
+                                            >
+                                                Save
+                                            </button>
                                         </div>
                                     </div>
                                     <strong>{formatScore(track.score)}</strong>
