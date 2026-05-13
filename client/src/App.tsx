@@ -4,6 +4,7 @@ import "./index.css";
 import { getCurrentUser } from "./api/authApi";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ThemeToggle from "./components/ThemeToggle";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 import CollaborationPage from "./pages/CollaborationPage";
 import DashboardPage from "./pages/DashboardPage";
 import LoginPage from "./pages/LoginPage";
@@ -90,6 +91,7 @@ function App() {
                         )
                     }
                 />
+                <Route path="/admin" element={<AdminDashboardPage />} />
                 <Route
                     path="/dashboard"
                     element={

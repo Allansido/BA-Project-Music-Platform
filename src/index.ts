@@ -1,6 +1,7 @@
 
 import "dotenv/config";
 import app from "./presentation/server/app";
+import { initAnalyticsStore } from "./domain/analytics/analyticsService";
 import { initUserStore } from "./domain/auth/userStore";
 
 const port = process.env.PORT ?? 3000;
@@ -31,5 +32,9 @@ app.listen(port, () => {
 // Let the API start even if the database is temporarily unavailable so
 // static signup data, health checks, and non-database routes can still work.
 initUserStore().catch((error) => {
+    logDatabaseStartupError(error);
+});
+
+initAnalyticsStore().catch((error) => {
     logDatabaseStartupError(error);
 });

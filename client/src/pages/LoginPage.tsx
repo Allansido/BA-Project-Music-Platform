@@ -93,6 +93,9 @@ function LoginPage({ onLoginSuccess }: LoginPageProps) {
                 <p className="switch-text">
                     No account yet? <Link to="/signup">Create an account</Link>
                 </p>
+                <p className="admin-login-link">
+                    <Link to="/admin">Login as Admin</Link>
+                </p>
             </section>
         </main>
     );
