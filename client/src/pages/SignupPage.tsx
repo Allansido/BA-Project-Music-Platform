@@ -978,6 +978,9 @@ function SignupPage({ onSignupSuccess }: SignupPageProps) {
                 <p className="switch-text">
                     Already have an account? <Link to="/login">Go to login</Link>
                 </p>
+                <p className="admin-login-link">
+                    <Link to="/admin">Login as Admin</Link>
+                </p>
             </section>
         </main>
     );

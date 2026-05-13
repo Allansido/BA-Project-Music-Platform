@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { sessionMiddleware } from "./session";
 import authRoutes from "./routes/authRoutes";
+import analyticsRoutes from "../routes/analyticsRoutes";
 import recommendationRoutes from "../routes/recommendationRoutes";
 
 const app = express();
@@ -31,6 +32,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/analytics", analyticsRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 
 export default app;

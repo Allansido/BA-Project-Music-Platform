@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { trackInteraction } from "../api/analyticsApi";
 import { logout } from "../api/authApi";
 import { getRecommendations } from "../api/recommendationApi";
 import type { SafeUser } from "../types/auth";
+import type { AnalyticsEventType } from "../types/analytics";
+import type { RecommendedTrack } from "../types/recommendations";
 import type { RecommendationResult } from "../types/recommendations";
 
 interface DashboardPageProps {
@@ -118,6 +121,29 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
         }
     }
 
+    function trackDiscoveryMix() {
+        trackInteraction({
+            eventType: "play",
+            itemType: "playlist",
+            itemName: "Discovery mix",
+            context: "listener-home"
+        });
+    }
+
+    function trackTrackAction(
+        eventType: AnalyticsEventType,
+        track: RecommendedTrack
+    ) {
+        trackInteraction({
+            eventType,
+            itemType: "track",
+            itemId: track.trackId,
+            itemName: track.trackName,
+            artistName: track.artistName,
+            context: "listener-home"
+        });
+    }
+
     return (
         <main className="app-shell">
             <aside className="sidebar" aria-label="Music platform navigation">
@@ -161,7 +187,11 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                             {getRoleSummary(user)} · {user.genres.slice(0, 3).join(", ")}
                         </p>
                         <div className="hero-actions">
-                            <button type="button" className="primary-button">
+                            <button
+                                type="button"
+                                className="primary-button"
+                                onClick={trackDiscoveryMix}
+                            >
                                 Play discovery mix
                             </button>
                             <Link
@@ -212,6 +242,32 @@ function DashboardPage({ user, onLogout }: DashboardPageProps) {
                                 <h3>{track.trackName}</h3>
                                 <p>{track.artistName}</p>
                                 <small>Score {formatScore(track.score)}</small>
+                                <div className="interaction-actions">
+                                    <button
+                                        type="button"
+                                        onClick={() => trackTrackAction("play", track)}
+                                    >
+                                        Play
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => trackTrackAction("skip", track)}
+                                    >
+                                        Skip
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => trackTrackAction("like", track)}
+                                    >
+                                        Like
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => trackTrackAction("save", track)}
+                                    >
+                                        Save
+                                    </button>
+                                </div>
                             </article>
                         ))}
                     </div>
