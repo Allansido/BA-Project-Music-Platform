@@ -1,0 +1,30 @@
+name: Repo hygiene
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  generated-files:
+    name: Block generated and dependency files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check tracked generated files
+        shell: bash
+        run: |
+          tracked_generated_files="$(
+            git ls-files | grep -E '(^|/)(node_modules|dist)/' || true
+          )"
+
+          if [ -n "$tracked_generated_files" ]; then
+            echo "Generated or dependency files are tracked by Git:"
+            echo "$tracked_generated_files"
+            echo
+            echo "Remove them from tracking with:"
+            echo "  git rm -r --cached node_modules dist"
+            exit 1
+          fi
