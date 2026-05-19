@@ -36,6 +36,7 @@ export interface ExposureQuotaEvaluation {
 
 export interface PrefixFairnessCheckpointSummary {
     topK: number;
+    minimumExposureShareByGroup: Partial<Record<ArtistSegment, number>>;
     minimumExposureByGroup: Partial<Record<ArtistSegment, number>>;
 }
 
@@ -43,6 +44,7 @@ export interface RecommendationFairnessSummary {
     enabled: boolean;
     candidatePoolSize: number;
     topN: number;
+    minimumExposureShareByGroup: Partial<Record<ArtistSegment, number>>;
     minimumExposureByGroup: Partial<Record<ArtistSegment, number>>;
     prefixCheckpoints: PrefixFairnessCheckpointSummary[];
     creatorGroupThresholds: {

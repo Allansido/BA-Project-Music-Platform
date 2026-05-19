@@ -3,6 +3,7 @@ import "dotenv/config";
 import app from "./presentation/server/app";
 import { initAnalyticsStore } from "./domain/analytics/analyticsService";
 import { initUserStore } from "./domain/auth/userStore";
+import { warmRecommendationIndex } from "./domain/recommendationService";
 
 const port = process.env.PORT ?? 3000;
 
@@ -38,3 +39,13 @@ initUserStore().catch((error) => {
 initAnalyticsStore().catch((error) => {
     logDatabaseStartupError(error);
 });
+
+warmRecommendationIndex()
+    .then((index) => {
+        console.log(
+            `Recommendation index warmed with ${index.popularArtistEntries.length} artists and ${index.popularTrackEntries.length} tracks.`
+        );
+    })
+    .catch((error) => {
+        console.warn("Failed to warm recommendation index.", error);
+    });

@@ -1,5 +1,8 @@
 import { ArtistSegment } from "../../../domain/artistSegmentation";
-import { ExposureQuotaRule } from "../../../domain/fairnessConfig";
+import {
+    ExposureQuotaRule,
+    getMinimumExposureCountsForLimit
+} from "../../../domain/fairnessConfig";
 import { ExposureCountSummary } from "../../recommendation_modules/baselineRecommender";
 
 export interface FairnessDeviationResult {
@@ -20,7 +23,12 @@ function getTargetCount(
     rule: ExposureQuotaRule,
     evaluatedLists: number
 ): number {
-    return (rule.minimumExposureByGroup[group] ?? 0) * evaluatedLists;
+    const minimumExposureByGroup = getMinimumExposureCountsForLimit(
+        rule.minimumExposureShareByGroup,
+        rule.topN
+    );
+
+    return minimumExposureByGroup[group] * evaluatedLists;
 }
 
 export class FairnessDeviationMetric {

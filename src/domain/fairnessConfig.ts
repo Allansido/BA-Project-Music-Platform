@@ -7,12 +7,12 @@ export interface CreatorGroupThresholds {
 
 export interface PrefixFairnessCheckpoint {
     topK: number;
-    minimumExposureByGroup: Partial<Record<ArtistSegment, number>>;
+    minimumExposureShareByGroup: Partial<Record<ArtistSegment, number>>;
 }
 
 export interface ExposureQuotaRule {
     topN: number;
-    minimumExposureByGroup: Partial<Record<ArtistSegment, number>>;
+    minimumExposureShareByGroup: Partial<Record<ArtistSegment, number>>;
     prefixCheckpoints: PrefixFairnessCheckpoint[];
 }
 
@@ -30,30 +30,61 @@ export const DEFAULT_FAIRNESS_CONFIG: FairnessConfig = {
         emergingMaxTotalListens: 500
     },
     exposureQuotaRule: {
-        topN: 10,
-        minimumExposureByGroup: {
-            emerging: 4
+        topN: 20,
+        minimumExposureShareByGroup: {
+            emerging: 0.4
         },
         prefixCheckpoints: [
             {
                 topK: 3,
-                minimumExposureByGroup: {
-                    emerging: 1
+                minimumExposureShareByGroup: {
+                    emerging: 0.4
                 }
             },
             {
                 topK: 5,
-                minimumExposureByGroup: {
-                    emerging: 2
+                minimumExposureShareByGroup: {
+                    emerging: 0.4
                 }
             },
             {
                 topK: 10,
-                minimumExposureByGroup: {
-                    emerging: 4
+                minimumExposureShareByGroup: {
+                    emerging: 0.4
+                }
+            },
+            {
+                topK: 20,
+                minimumExposureShareByGroup: {
+                    emerging: 0.4
                 }
             }
         ]
     },
-    candidatePoolSize: 5000
+    candidatePoolSize: 1000
 };
+
+function getValidExposureShare(value: number | undefined): number {
+    if (!Number.isFinite(value)) {
+        return 0;
+    }
+
+    return Math.min(1, Math.max(0, value ?? 0));
+}
+
+export function getMinimumExposureCountsForLimit(
+    minimumExposureShareByGroup: Partial<Record<ArtistSegment, number>>,
+    limit: number
+): Record<ArtistSegment, number> {
+    const safeLimit = Math.max(0, Math.floor(limit));
+
+    return {
+        emerging: Math.round(
+            safeLimit * getValidExposureShare(minimumExposureShareByGroup.emerging)
+        ),
+        established: Math.round(
+            safeLimit *
+                getValidExposureShare(minimumExposureShareByGroup.established)
+        )
+    };
+}

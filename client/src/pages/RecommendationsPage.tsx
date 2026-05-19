@@ -22,6 +22,14 @@ function formatScore(score: number): number {
     return Math.ceil(score);
 }
 
+function formatExposureShare(share: number | undefined): string {
+    if (!Number.isFinite(share)) {
+        return "0%";
+    }
+
+    return `${Math.round((share ?? 0) * 100)}%`;
+}
+
 function RecommendationsPage() {
     const [recommendations, setRecommendations] =
         useState<RecommendationResult | null>(null);
@@ -153,7 +161,7 @@ function RecommendationsPage() {
                                 <p>
                                     {fairness.prefixCheckpoints
                                         .map((checkpoint) => (
-                                            `${checkpoint.minimumExposureByGroup.emerging ?? 0} in top ${checkpoint.topK}`
+                                            `${formatExposureShare(checkpoint.minimumExposureShareByGroup.emerging)} in top ${checkpoint.topK}`
                                         ))
                                         .join(", ")}
                                 </p>

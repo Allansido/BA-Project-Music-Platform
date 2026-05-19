@@ -1,7 +1,8 @@
 import { ArtistSegment } from "../../domain/artistSegmentation";
 import {
     ExposureQuotaRule,
-    PrefixFairnessCheckpoint
+    PrefixFairnessCheckpoint,
+    getMinimumExposureCountsForLimit
 } from "../../domain/fairnessConfig";
 import {
     ExposureCountSummary,
@@ -36,12 +37,13 @@ function countExposureByGroup<T extends GroupedRecommendation>(
 }
 
 function getRequestedMinimums(
-    minimumExposureByGroup: Partial<Record<ArtistSegment, number>>
+    minimumExposureShareByGroup: Partial<Record<ArtistSegment, number>>,
+    limit: number
 ): ExposureCountSummary {
-    return {
-        emerging: minimumExposureByGroup.emerging ?? 0,
-        established: minimumExposureByGroup.established ?? 0
-    };
+    return getMinimumExposureCountsForLimit(
+        minimumExposureShareByGroup,
+        limit
+    );
 }
 
 function getEffectiveMinimums(
@@ -79,7 +81,10 @@ function rerankForExposureQuota<T extends GroupedRecommendation>(
 } {
     const targetSize = Math.min(rule.topN, items.length);
     const available = countExposureByGroup(items, items.length);
-    const requestedMinimums = getRequestedMinimums(rule.minimumExposureByGroup);
+    const requestedMinimums = getRequestedMinimums(
+        rule.minimumExposureShareByGroup,
+        targetSize
+    );
     const effectiveMinimums = getEffectiveMinimums(requestedMinimums, available);
     const beforeTopN = countExposureByGroup(items, targetSize);
     const remaining = [...items];
@@ -99,7 +104,8 @@ function rerankForExposureQuota<T extends GroupedRecommendation>(
 
         if (activeCheckpoint) {
             const requestedForCheckpoint = getRequestedMinimums(
-                activeCheckpoint.minimumExposureByGroup
+                activeCheckpoint.minimumExposureShareByGroup,
+                activeCheckpoint.topK
             );
             const effectiveForCheckpoint = getEffectiveMinimums(
                 requestedForCheckpoint,

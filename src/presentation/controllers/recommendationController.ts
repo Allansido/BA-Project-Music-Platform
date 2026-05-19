@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { getRecommendationsForUser } from "../../domain/recommendationService";
 
+const RECOMMENDATION_LIMIT = 20;
+
 export async function getRecommendations(req: Request, res: Response) {
     const session = req.session as Request["session"] & { userId?: string };
 
@@ -9,7 +11,10 @@ export async function getRecommendations(req: Request, res: Response) {
     }
 
     try {
-        const recommendations = await getRecommendationsForUser(session.userId, 10);
+        const recommendations = await getRecommendationsForUser(
+            session.userId,
+            RECOMMENDATION_LIMIT
+        );
         return res.json(recommendations);
     } catch (error) {
         const message =
