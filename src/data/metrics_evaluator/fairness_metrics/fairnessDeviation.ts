@@ -1,5 +1,5 @@
-import { ArtistSegment } from "../../../domain/artistSegmentation";
-import { ExposureQuotaRule } from "../../../domain/fairnessConfig";
+import { ArtistSegment } from "../../../domain/fairness_artist_logic/artistSegmentation";
+import { ExposureQuotaRule } from "../../../domain/fairness_artist_logic/fairnessConfig";
 import { ExposureCountSummary } from "../../recommendation_modules/baselineRecommender";
 
 export interface FairnessDeviationResult {

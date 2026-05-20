@@ -2,7 +2,7 @@
 import "dotenv/config";
 import app from "./presentation/server/app";
 import { initAnalyticsStore } from "./domain/analytics/analyticsService";
-import { initUserStore } from "./domain/auth/userStore";
+import { initUserStore } from "./domain/authentication/userStore";
 
 const port = process.env.PORT ?? 3000;
 

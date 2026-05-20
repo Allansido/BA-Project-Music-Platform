@@ -7,7 +7,7 @@ import {
     ArtistStats,
     classifyArtistSegment,
     getArtistAccountAgeDays
-} from "../domain/artistSegmentation";
+} from "../domain/fairness_artist_logic/artistSegmentation";
 
 const inputPath = "dataset/processed/interactions.json";
 const outputPath = "dataset/processed/artistSegments.json";

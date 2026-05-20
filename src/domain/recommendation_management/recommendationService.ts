@@ -1,27 +1,27 @@
 import fs from "fs";
 import readline from "readline";
-import { Interaction } from "../data/dataset_modules/lastfmLoader";
+import { Interaction } from "../../data/dataset_modules/lastfmLoader";
 import {
     BaselineRecommendationResult,
     RecommendedArtist,
     RecommendedTracks
-} from "../data/recommendation_modules/baselineRecommender";
+} from "../../data/recommendation_modules/baselineRecommender";
 import {
     applyExposureQuotaToArtists,
     applyExposureQuotaToTracks
-} from "../data/recommendation_modules/fairnessRecommender";
+} from "../../data/recommendation_modules/fairnessRecommender";
 import {
     ArtistSegment,
     classifyArtistSegment
-} from "./artistSegmentation";
-import { SafeUser } from "./auth/types";
-import { getSafeUserById } from "./auth/authService";
-import { DEFAULT_FAIRNESS_CONFIG } from "./fairnessConfig";
+} from "../fairness_artist_logic/artistSegmentation";
+import { SafeUser } from "../authentication/types";
+import { getSafeUserById } from "../authentication/authService";
+import { DEFAULT_FAIRNESS_CONFIG } from "../fairness_artist_logic/fairnessConfig";
 import {
     ArtistGenreScore,
     ArtistTagIndex,
     mapLastFmTagsToGenres
-} from "./artistTagMapping";
+} from "../fairness_artist_logic/artistTagMapping";
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
 const ARTIST_TAGS_PATH = "dataset/processed/artistTags.json";

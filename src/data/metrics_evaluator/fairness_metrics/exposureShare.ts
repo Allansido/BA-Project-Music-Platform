@@ -1,4 +1,4 @@
-import { ArtistSegment } from "../../../domain/artistSegmentation";
+import { ArtistSegment } from "../../../domain/fairness_artist_logic/artistSegmentation";
 import { ExposureCountSummary } from "../../recommendation_modules/baselineRecommender";
 
 export interface ExposureShareResult {

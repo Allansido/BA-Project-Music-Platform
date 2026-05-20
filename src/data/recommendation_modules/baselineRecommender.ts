@@ -1,6 +1,6 @@
-import { ArtistSegment } from "../../domain/artistSegmentation";
+import { ArtistSegment } from "../../domain/fairness_artist_logic/artistSegmentation";
 import { Interaction } from "../dataset_modules/lastfmLoader";
-import { SafeUser } from "../../domain/auth/types";
+import { SafeUser } from "../../domain/authentication/types";
 
 export interface RecommendedArtist {
     artistId: string | null;

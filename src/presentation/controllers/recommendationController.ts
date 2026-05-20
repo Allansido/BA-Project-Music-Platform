@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getRecommendationsForUser } from "../../domain/recommendationService";
+import { getRecommendationsForUser } from "../../domain/recommendation_management/recommendationService";
 
 export async function getRecommendations(req: Request, res: Response) {
     const session = req.session as Request["session"] & { userId?: string };
