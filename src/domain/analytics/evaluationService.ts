@@ -16,14 +16,14 @@ import {
     ArtistSegment,
     ArtistStats,
     classifyArtistSegment
-} from "../artistSegmentation";
-import { SafeUser } from "../auth/types";
-import { DEFAULT_FAIRNESS_CONFIG } from "../fairnessConfig";
+} from "../fairness_artist_logic/artistSegmentation";
+import { SafeUser } from "../authentication/types";
+import { DEFAULT_FAIRNESS_CONFIG } from "../fairness_artist_logic/fairnessConfig";
 import {
     createRecommendationIndex,
     getRecommendationsForProfile,
     RecommendationIndex
-} from "../recommendationService";
+} from "../recommendation_management/recommendationService";
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
 const ARTIST_SEGMENTS_PATH = "dataset/processed/artistSegments.json";

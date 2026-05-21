@@ -7,7 +7,7 @@ import {
     loginUser,
     registerUser,
     updateCurrentUserProfile
-} from "../../../domain/auth/authService";
+} from "../../../domain/authentication/authService";
 
 const router = Router();
 

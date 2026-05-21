@@ -1,9 +1,9 @@
-import { ArtistSegment } from "../../domain/artistSegmentation";
+import { ArtistSegment } from "../../domain/fairness_artist_logic/artistSegmentation";
 import {
     ExposureQuotaRule,
     PrefixFairnessCheckpoint,
     getMinimumExposureCountsForLimit
-} from "../../domain/fairnessConfig";
+} from "../../domain/fairness_artist_logic/fairnessConfig";
 import {
     ExposureCountSummary,
     ExposureQuotaEvaluation,

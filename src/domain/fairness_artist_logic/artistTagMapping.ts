@@ -1,4 +1,4 @@
-import { AVAILABLE_GENRES } from "./auth/genreData";
+import { AVAILABLE_GENRES } from "../authentication/genreData";
 
 export interface LastFmArtistTag {
     name: string;

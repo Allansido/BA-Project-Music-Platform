@@ -3,12 +3,12 @@ import {
     RecommendedArtist,
     RecommendedTracks
 } from "../../recommendation_modules/baselineRecommender";
-import { SafeUser } from "../../../domain/auth/types";
+import { SafeUser } from "../../../domain/authentication/types";
 import {
     createRecommendationIndex,
     getRecommendationsForProfile,
     RecommendationIndex
-} from "../../../domain/recommendationService";
+} from "../../../domain/recommendation_management/recommendationService";
 
 interface NdcgAtNUserSplit {
     userId: string;

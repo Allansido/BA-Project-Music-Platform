@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getRecommendationsForUser } from "../../domain/recommendationService";
+import { getRecommendationsForUser } from "../../domain/recommendation_management/recommendationService";
 
 const RECOMMENDATION_LIMIT = 20;
 

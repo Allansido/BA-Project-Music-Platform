@@ -1,4 +1,4 @@
-import { Interaction } from "../data/dataset_modules/lastfmLoader";
+import { Interaction } from "../../data/dataset_modules/lastfmLoader";
 import { DEFAULT_FAIRNESS_CONFIG } from "./fairnessConfig";
 
 export type ArtistSegment = "emerging" | "established";

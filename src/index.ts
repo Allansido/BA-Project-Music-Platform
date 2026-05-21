@@ -2,8 +2,8 @@
 import "dotenv/config";
 import app from "./presentation/server/app";
 import { initAnalyticsStore } from "./domain/analytics/analyticsService";
-import { initUserStore } from "./domain/auth/userStore";
-import { warmRecommendationIndex } from "./domain/recommendationService";
+import { initUserStore } from "./domain/authentication/userStore";
+import { warmRecommendationIndex } from "./domain/recommendation_management/recommendationService";
 
 const port = process.env.PORT ?? 3000;
 

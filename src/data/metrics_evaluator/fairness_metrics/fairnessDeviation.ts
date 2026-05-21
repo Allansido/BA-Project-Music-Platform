@@ -1,8 +1,8 @@
-import { ArtistSegment } from "../../../domain/artistSegmentation";
+import { ArtistSegment } from "../../../domain/fairness_artist_logic/artistSegmentation";
 import {
     ExposureQuotaRule,
     getMinimumExposureCountsForLimit
-} from "../../../domain/fairnessConfig";
+} from "../../../domain/fairness_artist_logic/fairnessConfig";
 import { ExposureCountSummary } from "../../recommendation_modules/baselineRecommender";
 
 export interface FairnessDeviationResult {

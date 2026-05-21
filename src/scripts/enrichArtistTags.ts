@@ -2,17 +2,17 @@ import "dotenv/config";
 import fs from "fs";
 import path from "path";
 import readline from "readline";
-import { getArtistTagKey, mapLastFmTagsToGenres } from "../domain/artistTagMapping";
+import { getArtistTagKey, mapLastFmTagsToGenres } from "../domain/fairness_artist_logic/artistTagMapping";
 import {
     ArtistTagIndex,
     ArtistTagRecord,
     LastFmArtistTag
-} from "../domain/artistTagMapping";
+} from "../domain/fairness_artist_logic/artistTagMapping";
 import {
     ArtistSegment,
     classifyArtistSegment
-} from "../domain/artistSegmentation";
-import { DEFAULT_FAIRNESS_CONFIG } from "../domain/fairnessConfig";
+} from "../domain/fairness_artist_logic/artistSegmentation";
+import { DEFAULT_FAIRNESS_CONFIG } from "../domain/fairness_artist_logic/fairnessConfig";
 import { Interaction } from "../data/dataset_modules/lastfmLoader";
 
 const INTERACTIONS_PATH =
