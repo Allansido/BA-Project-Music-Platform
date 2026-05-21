@@ -181,7 +181,7 @@ function AdminDashboardPage() {
                                         </strong>
                                     </div>
                                     <div>
-                                        <span>Artist nDCG@N</span>
+                                        <span>Artist NDCG@N</span>
                                         <strong>
                                             {formatDecimal(
                                                 metrics.evaluation.relevance.baseline
@@ -190,7 +190,7 @@ function AdminDashboardPage() {
                                         </strong>
                                     </div>
                                     <div>
-                                        <span>Track nDCG@N</span>
+                                        <span>Track NDCG@N</span>
                                         <strong>
                                             {formatDecimal(
                                                 metrics.evaluation.relevance.baseline
@@ -232,7 +232,7 @@ function AdminDashboardPage() {
                                         </strong>
                                     </div>
                                     <div>
-                                        <span>Artist nDCG@N</span>
+                                        <span>Artist NDCG@N</span>
                                         <strong>
                                             {formatDecimal(
                                                 metrics.evaluation.relevance
@@ -241,7 +241,7 @@ function AdminDashboardPage() {
                                         </strong>
                                     </div>
                                     <div>
-                                        <span>Track nDCG@N</span>
+                                        <span>Track NDCG@N</span>
                                         <strong>
                                             {formatDecimal(
                                                 metrics.evaluation.relevance
