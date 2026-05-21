@@ -18,6 +18,7 @@ import { SafeUser } from "../authentication/types";
 import { getSafeUserById } from "../authentication/authService";
 import {
     DEFAULT_FAIRNESS_CONFIG,
+    ExposureQuotaRule,
     getMinimumExposureCountsForLimit
 } from "../fairness_artist_logic/fairnessConfig";
 import {
@@ -100,6 +101,8 @@ type ArtistGroupAggregate = {
 export interface RecommendationGenerationOptions {
     applyFairness?: boolean;
     candidatePoolSize?: number;
+    exposureQuotaRule?: ExposureQuotaRule;
+    disableCache?: boolean;
 }
 
 type RankedArtistCandidate = {
@@ -1039,7 +1042,8 @@ function getRecommendationCacheKey(
         ).toLowerCase(),
         limit,
         applyFairness: options.applyFairness ?? DEFAULT_FAIRNESS_CONFIG.enabled,
-        candidatePoolSize: options.candidatePoolSize ?? null
+        candidatePoolSize: options.candidatePoolSize ?? null,
+        exposureQuotaRule: options.exposureQuotaRule ?? null
     });
 }
 
@@ -1071,18 +1075,22 @@ export function getRecommendationsForProfile(
     options: RecommendationGenerationOptions = {}
 ): BaselineRecommendationResult {
     const applyFairness = options.applyFairness ?? DEFAULT_FAIRNESS_CONFIG.enabled;
+    const exposureQuotaRule =
+        options.exposureQuotaRule ?? DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule;
     const candidatePoolSize = Math.max(
         limit,
         options.candidatePoolSize ?? 0,
         applyFairness ? DEFAULT_FAIRNESS_CONFIG.candidatePoolSize : 0,
-        applyFairness ? DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN : 0
+        applyFairness ? exposureQuotaRule.topN : 0
     );
     const cacheKey = getRecommendationCacheKey(user, limit, {
         ...options,
         applyFairness,
         candidatePoolSize
     });
-    const cachedRecommendations = recommendationResultCache.get(cacheKey);
+    const cachedRecommendations = options.disableCache
+        ? null
+        : recommendationResultCache.get(cacheKey);
 
     if (cachedRecommendations) {
         return cachedRecommendations;
@@ -1104,17 +1112,20 @@ export function getRecommendationsForProfile(
             tracks: recommendationsWithGroups.tracks.slice(0, limit)
         };
 
-        rememberRecommendationResult(cacheKey, recommendations);
+        if (!options.disableCache) {
+            rememberRecommendationResult(cacheKey, recommendations);
+        }
+
         return recommendations;
     }
 
     const artistQuotaResult = applyExposureQuotaToArtists(
         recommendationsWithGroups.artists,
-        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
+        exposureQuotaRule
     );
     const trackQuotaResult = applyExposureQuotaToTracks(
         recommendationsWithGroups.tracks,
-        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
+        exposureQuotaRule
     );
 
     const recommendations = {
@@ -1123,18 +1134,16 @@ export function getRecommendationsForProfile(
         fairness: {
             enabled: applyFairness,
             candidatePoolSize,
-            topN: DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN,
+            topN: exposureQuotaRule.topN,
             minimumExposureShareByGroup:
-                DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
-                    .minimumExposureShareByGroup,
+                exposureQuotaRule.minimumExposureShareByGroup,
             minimumExposureByGroup:
                 getMinimumExposureCountsForLimit(
-                    DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule
-                        .minimumExposureShareByGroup,
-                    DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN
+                    exposureQuotaRule.minimumExposureShareByGroup,
+                    exposureQuotaRule.topN
                 ),
             prefixCheckpoints:
-                DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.prefixCheckpoints.map(
+                exposureQuotaRule.prefixCheckpoints.map(
                     (checkpoint) => ({
                         ...checkpoint,
                         minimumExposureByGroup:
@@ -1151,7 +1160,10 @@ export function getRecommendationsForProfile(
         }
     };
 
-    rememberRecommendationResult(cacheKey, recommendations);
+    if (!options.disableCache) {
+        rememberRecommendationResult(cacheKey, recommendations);
+    }
+
     return recommendations;
 }
 

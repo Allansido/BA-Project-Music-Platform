@@ -9,6 +9,7 @@ import {
     getRecommendationsForProfile,
     RecommendationIndex
 } from "../../../domain/recommendation_management/recommendationService";
+import { ExposureQuotaRule } from "../../../domain/fairness_artist_logic/fairnessConfig";
 
 interface PrecisionAtNUserSplit {
     userId: string;
@@ -83,6 +84,8 @@ export interface PrecisionAtNOptions {
     genreCount?: number;
     applyFairness?: boolean;
     discoveryGoal?: string;
+    exposureQuotaRule?: ExposureQuotaRule;
+    disableCache?: boolean;
 }
 
 type RankedRecommendation = RecommendedArtist | RecommendedTracks;
@@ -97,6 +100,8 @@ type NormalizedPrecisionAtNOptions = {
     genreCount: number;
     applyFairness: boolean;
     discoveryGoal: string;
+    exposureQuotaRule?: ExposureQuotaRule;
+    disableCache: boolean;
 };
 
 const DEFAULT_OPTIONS: NormalizedPrecisionAtNOptions = {
@@ -108,7 +113,8 @@ const DEFAULT_OPTIONS: NormalizedPrecisionAtNOptions = {
     favoriteArtistCount: 5,
     genreCount: 3,
     applyFairness: true,
-    discoveryGoal: "recommend similar music"
+    discoveryGoal: "recommend similar music",
+    disableCache: false
 };
 
 function normalizeText(value: string | undefined): string {
@@ -182,7 +188,9 @@ function normalizeOptions(
         ),
         applyFairness: options.applyFairness ?? DEFAULT_OPTIONS.applyFairness,
         discoveryGoal: normalizeText(options.discoveryGoal) ||
-            DEFAULT_OPTIONS.discoveryGoal
+            DEFAULT_OPTIONS.discoveryGoal,
+        exposureQuotaRule: options.exposureQuotaRule,
+        disableCache: options.disableCache ?? false
     };
 }
 
@@ -576,7 +584,9 @@ export class PrecisionAtNMetric {
                 this.options.topN,
                 recommendationIndex,
                 {
-                    applyFairness: this.options.applyFairness
+                    applyFairness: this.options.applyFairness,
+                    exposureQuotaRule: this.options.exposureQuotaRule,
+                    disableCache: this.options.disableCache
                 }
             );
             const favoriteArtistKeys = new Set(

@@ -18,7 +18,10 @@ import {
     classifyArtistSegment
 } from "../fairness_artist_logic/artistSegmentation";
 import { SafeUser } from "../authentication/types";
-import { DEFAULT_FAIRNESS_CONFIG } from "../fairness_artist_logic/fairnessConfig";
+import {
+    DEFAULT_FAIRNESS_CONFIG,
+    ExposureQuotaRule
+} from "../fairness_artist_logic/fairnessConfig";
 import {
     createRecommendationIndex,
     getRecommendationsForProfile,
@@ -27,13 +30,22 @@ import {
 
 const INTERACTIONS_PATH = "dataset/processed/interactions.json";
 const ARTIST_SEGMENTS_PATH = "dataset/processed/artistSegments.json";
-const DEFAULT_TOP_N = 10;
+const DEFAULT_TOP_N = DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.topN;
 const DEFAULT_SAMPLE_USERS = 25;
 const DEFAULT_MAX_INTERACTIONS = 12000;
 const DEFAULT_MAX_INTERACTIONS_PER_USER = 500;
 const DEFAULT_TEST_RATIO = 0.2;
 const DEFAULT_FAVORITE_ARTIST_COUNT = 5;
 const DEFAULT_GENRE_COUNT = 3;
+const EVALUATION_EXPOSURE_QUOTA_RULE: ExposureQuotaRule = {
+    topN: DEFAULT_TOP_N,
+    minimumExposureShareByGroup:
+        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.minimumExposureShareByGroup,
+    prefixCheckpoints:
+        DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule.prefixCheckpoints.filter(
+            (checkpoint) => checkpoint.topK <= DEFAULT_TOP_N
+        )
+};
 
 type EvaluationMode = "baseline" | "fairnessAware";
 
@@ -443,7 +455,7 @@ function summarizeFairnessEntity(input: {
     );
     const fairnessDeviation = new FairnessDeviationMetric().evaluate({
         exposureByGroup: input.exposureByGroup,
-        rule: DEFAULT_FAIRNESS_CONFIG.exposureQuotaRule,
+        rule: EVALUATION_EXPOSURE_QUOTA_RULE,
         evaluatedLists: input.evaluatedLists
     });
 
@@ -469,7 +481,9 @@ function getRecommendationsForEvaluationMode(input: {
         input.index,
         {
             applyFairness: input.mode === "fairnessAware",
-            candidatePoolSize: DEFAULT_FAIRNESS_CONFIG.candidatePoolSize
+            exposureQuotaRule: EVALUATION_EXPOSURE_QUOTA_RULE,
+            candidatePoolSize: DEFAULT_FAIRNESS_CONFIG.candidatePoolSize,
+            disableCache: true
         }
     );
 }
@@ -531,19 +545,25 @@ async function buildRecommendationEvaluationOverview():
     const sample = await loadEvaluationSample();
     const precisionBaseline = new PrecisionAtNMetric({
         topN: DEFAULT_TOP_N,
-        applyFairness: false
+        applyFairness: false,
+        disableCache: true
     }).evaluate(sample.interactions);
     const precisionFairnessAware = new PrecisionAtNMetric({
         topN: DEFAULT_TOP_N,
-        applyFairness: true
+        applyFairness: true,
+        exposureQuotaRule: EVALUATION_EXPOSURE_QUOTA_RULE,
+        disableCache: true
     }).evaluate(sample.interactions);
     const ndcgBaseline = new NdcgAtNMetric({
         topN: DEFAULT_TOP_N,
-        applyFairness: false
+        applyFairness: false,
+        disableCache: true
     }).evaluate(sample.interactions);
     const ndcgFairnessAware = new NdcgAtNMetric({
         topN: DEFAULT_TOP_N,
-        applyFairness: true
+        applyFairness: true,
+        exposureQuotaRule: EVALUATION_EXPOSURE_QUOTA_RULE,
+        disableCache: true
     }).evaluate(sample.interactions);
     const recommendationIndex = createRecommendationIndex(sample.interactions);
     applyFullDatasetArtistSegments(recommendationIndex);
